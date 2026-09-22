@@ -1321,4 +1321,5 @@
     <string name="credential_manager_policy_applied_toast">Policy has been applied</string>
     <string name="credential_manager_policy_title">Enter package name of Credential Provider</string>
 
+    <string name="app_security_title">DPC password</string>
 </resources>
