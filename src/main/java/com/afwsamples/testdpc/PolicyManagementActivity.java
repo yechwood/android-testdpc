@@ -20,6 +20,10 @@ import android.Manifest;
 import android.R.id;
 import android.app.Fragment;
 import android.app.FragmentManager;
+import android.app.AlertDialog;
+import android.text.InputType;
+import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Build;
@@ -30,6 +34,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import com.afwsamples.testdpc.common.DumpableActivity;
+import com.afwsamples.testdpc.common.AppSecurity;
 import com.afwsamples.testdpc.common.OnBackPressedHandler;
 import com.afwsamples.testdpc.policy.PolicyManagementFragment;
 import com.afwsamples.testdpc.search.PolicySearchFragment;
@@ -51,6 +56,7 @@ public class PolicyManagementActivity extends DumpableActivity
   private static final String LOCK_MODE_ACTION_STOP = "stop";
 
   private boolean mLockTaskMode;
+  private boolean mUnlockDialogShowing;
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
@@ -64,6 +70,91 @@ public class PolicyManagementActivity extends DumpableActivity
           .commit();
     }
     getFragmentManager().addOnBackStackChangedListener(this);
+  }
+
+
+  private void showUnlockDialog() {
+    mUnlockDialogShowing = true;
+    final EditText input = new EditText(this);
+    input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+    input.setSingleLine(true);
+    input.setHint("Password");
+    AlertDialog dialog = new AlertDialog.Builder(this)
+        .setTitle("DPC password required")
+        .setMessage("Enter the password to access Test DPC.")
+        .setView(input)
+        .setCancelable(false)
+        .setPositiveButton("Unlock", null)
+        .show();
+    dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+      if (AppSecurity.verify(this, input.getText().toString())) {
+        mUnlockDialogShowing = false;
+        dialog.dismiss();
+      } else {
+        input.setError("Incorrect password");
+      }
+    });
+  }
+
+  private void showPasswordSettings() {
+    if (AppSecurity.hasPassword(this)) {
+      final EditText current = new EditText(this);
+      current.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+      current.setHint("Current password");
+      new AlertDialog.Builder(this)
+          .setTitle("Change DPC password")
+          .setMessage("Password set: " + AppSecurity.formatTime(AppSecurity.getPasswordSetTime(this))
+              + "\nPolicy last edited: " + AppSecurity.formatTime(AppSecurity.getPolicyEditedTime(this)))
+          .setView(current)
+          .setPositiveButton("Continue", (d, w) -> {
+            if (AppSecurity.verify(this, current.getText().toString())) {
+              showSetPasswordDialog();
+            } else {
+              new AlertDialog.Builder(this).setMessage("Incorrect password.").setPositiveButton("OK", null).show();
+            }
+          })
+          .setNegativeButton("Cancel", null)
+          .show();
+    } else {
+      showSetPasswordDialog();
+    }
+  }
+
+  private void showSetPasswordDialog() {
+    LinearLayout layout = new LinearLayout(this);
+    layout.setOrientation(LinearLayout.VERTICAL);
+    int pad = (int) (24 * getResources().getDisplayMetrics().density);
+    layout.setPadding(pad, 0, pad, 0);
+    EditText password = new EditText(this);
+    password.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+    password.setHint("New password");
+    EditText confirm = new EditText(this);
+    confirm.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+    confirm.setHint("Confirm password");
+    layout.addView(password);
+    layout.addView(confirm);
+    new AlertDialog.Builder(this)
+        .setTitle(AppSecurity.hasPassword(this) ? "Set new DPC password" : "Set DPC password")
+        .setMessage("Password set: " + AppSecurity.formatTime(AppSecurity.getPasswordSetTime(this))
+            + "\nPolicy last edited: " + AppSecurity.formatTime(AppSecurity.getPolicyEditedTime(this)))
+        .setView(layout)
+        .setPositiveButton("Save", (d, w) -> {
+          String p = password.getText().toString();
+          if (p.length() < 6 || !p.equals(confirm.getText().toString())) {
+            new AlertDialog.Builder(this)
+                .setMessage("Use at least 6 characters and make both entries match.")
+                .setPositiveButton("OK", null).show();
+            return;
+          }
+          if (AppSecurity.setPassword(this, p)) {
+            new AlertDialog.Builder(this)
+                .setMessage("Password saved.\nPassword set: " + AppSecurity.formatTime(AppSecurity.getPasswordSetTime(this))
+                    + "\nPolicy last edited: " + AppSecurity.formatTime(AppSecurity.getPolicyEditedTime(this)))
+                .setPositiveButton("OK", null).show();
+          }
+        })
+        .setNegativeButton("Cancel", null)
+        .show();
   }
 
   @Override
@@ -81,6 +172,9 @@ public class PolicyManagementActivity extends DumpableActivity
           .replace(R.id.container, PolicySearchFragment.newInstance())
           .addToBackStack("search")
           .commit();
+    } else if (itemId == R.id.action_app_security) {
+      showPasswordSettings();
+      return true;
     } else if (itemId == id.home) {
       getFragmentManager().popBackStack();
     }
@@ -90,6 +184,9 @@ public class PolicyManagementActivity extends DumpableActivity
   @Override
   protected void onResume() {
     super.onResume();
+    if (AppSecurity.hasPassword(this) && !mUnlockDialogShowing) {
+      showUnlockDialog();
+    }
 
     String lockModeCommand = getIntent().getStringExtra(CMD_LOCK_TASK_MODE);
     if (lockModeCommand != null) {
