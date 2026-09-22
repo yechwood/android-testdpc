@@ -1,0 +1,38 @@
+name: Build Test DPC APK
+
+on:
+  push:
+    branches: [ "master" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        run: git clone --depth 1 --branch master "https://github.com/${GITHUB_REPOSITORY}.git" source
+
+      - name: Install Bazelisk
+        run: |
+          curl -fsSL -o bazel https://github.com/bazelbuild/bazelisk/releases/download/v1.27.1/bazelisk-linux-amd64
+          chmod +x bazel
+          sudo mv bazel /usr/local/bin/bazel
+
+      - name: Build release APK
+        working-directory: source
+        run: |
+          bazel build //:testdpc
+          cp bazel-bin/testdpc.apk TestDPC-custom.apk
+
+      - name: Publish APK release
+        working-directory: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="custom-${GITHUB_SHA::12}"
+          gh release create "$TAG" TestDPC-custom.apk \
+            --title "TestDPC custom ${GITHUB_SHA::12}" \
+            --notes "Custom Test DPC build: all-app hide/suspend lists with search, plus DPC password protection and policy timestamps."
