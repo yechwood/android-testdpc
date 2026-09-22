@@ -87,6 +87,7 @@ import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
+import android.widget.SearchView;
 import android.widget.Toast;
 import androidx.annotation.RequiresApi;
 import androidx.annotation.StringRes;
@@ -106,6 +107,7 @@ import com.afwsamples.testdpc.DevicePolicyManagerGatewayImpl;
 import com.afwsamples.testdpc.R;
 import com.afwsamples.testdpc.SetupManagementActivity;
 import com.afwsamples.testdpc.common.AccountArrayAdapter;
+import com.afwsamples.testdpc.common.AppSecurity;
 import com.afwsamples.testdpc.common.AppInfoArrayAdapter;
 import com.afwsamples.testdpc.common.BaseSearchablePolicyPreferenceFragment;
 import com.afwsamples.testdpc.common.CertificateUtil;
@@ -3652,64 +3654,26 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
    * Shows an alert dialog which displays a list hidden / non-hidden apps. Clicking an app in the
    * dialog enables the app.
    */
-  private void showHideAppsPrompt(final boolean showHiddenApps) {
-    final List<String> showApps = new ArrayList<>();
-    if (showHiddenApps) {
-      // Find all hidden packages using the GET_UNINSTALLED_PACKAGES flag
-      for (ApplicationInfo applicationInfo : getAllInstalledApplicationsSorted()) {
-        if (mDevicePolicyManager.isApplicationHidden(
-            mAdminComponentName, applicationInfo.packageName)) {
-          showApps.add(applicationInfo.packageName);
-        }
-      }
-    } else {
-      // Find all non-hidden apps with a launcher icon
-      for (ResolveInfo res : getAllLauncherIntentResolversSorted()) {
-        if (!showApps.contains(res.activityInfo.packageName)
-            && !mDevicePolicyManager.isApplicationHidden(
-                mAdminComponentName, res.activityInfo.packageName)) {
-          showApps.add(res.activityInfo.packageName);
-        }
-      }
+    private void showHideAppsPrompt(final boolean showHiddenApps) {
+    final List<String> candidates = new ArrayList<>();
+    for (ApplicationInfo applicationInfo : getAllInstalledApplicationsSorted()) {
+      boolean hidden = mDevicePolicyManager.isApplicationHidden(
+          mAdminComponentName, applicationInfo.packageName);
+      if (hidden == showHiddenApps) candidates.add(applicationInfo.packageName);
     }
-
-    if (showApps.isEmpty()) {
-      showToast(showHiddenApps ? R.string.unhide_apps_empty : R.string.hide_apps_empty);
-    } else {
-      AppInfoArrayAdapter appInfoArrayAdapter =
-          new AppInfoArrayAdapter(getActivity(), R.id.pkg_name, showApps, true);
-      final int dialogTitleResId;
-      final int successResId;
-      final int failureResId;
-      if (showHiddenApps) {
-        // showing a dialog to unhide an app
-        dialogTitleResId = R.string.unhide_apps_title;
-        successResId = R.string.unhide_apps_success;
-        failureResId = R.string.unhide_apps_failure;
-      } else {
-        // showing a dialog to hide an app
-        dialogTitleResId = R.string.hide_apps_title;
-        successResId = R.string.hide_apps_success;
-        failureResId = R.string.hide_apps_failure;
-      }
-      new AlertDialog.Builder(getActivity())
-          .setTitle(getString(dialogTitleResId))
-          .setAdapter(
-              appInfoArrayAdapter,
-              new DialogInterface.OnClickListener() {
-                @Override
-                public void onClick(DialogInterface dialog, int position) {
-                  String packageName = showApps.get(position);
-                  if (mDevicePolicyManager.setApplicationHidden(
-                      mAdminComponentName, packageName, !showHiddenApps)) {
-                    showToast(successResId, packageName);
-                  } else {
-                    showToast(getString(failureResId, packageName), Toast.LENGTH_LONG);
-                  }
-                }
-              })
-          .show();
-    }
+    showSearchableAppList(
+        candidates,
+        showHiddenApps ? R.string.unhide_apps_title : R.string.hide_apps_title,
+        (packageName) -> {
+          boolean changed = mDevicePolicyManager.setApplicationHidden(
+              mAdminComponentName, packageName, !showHiddenApps);
+          if (changed) {
+            AppSecurity.markPolicyEdited(getActivity());
+            showToast(showHiddenApps ? R.string.unhide_apps_success : R.string.hide_apps_success, packageName);
+          } else {
+            showToast(getString(showHiddenApps ? R.string.unhide_apps_failure : R.string.hide_apps_failure, packageName), Toast.LENGTH_LONG);
+          }
+        });
   }
 
   @RequiresApi(api = VERSION_CODES.R)
@@ -3761,68 +3725,90 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
 
   /** Shows an alert dialog which displays a list of suspended/non-suspended apps. */
   @TargetApi(VERSION_CODES.N)
+    @TargetApi(VERSION_CODES.N)
   private void showSuspendAppsPrompt(final boolean forUnsuspending) {
-    final List<String> showApps = new ArrayList<>();
-    if (forUnsuspending) {
-      // Find all suspended packages using the GET_UNINSTALLED_PACKAGES flag.
-      for (ApplicationInfo applicationInfo : getAllInstalledApplicationsSorted()) {
-        if (isPackageSuspended(applicationInfo.packageName)) {
-          showApps.add(applicationInfo.packageName);
-        }
-      }
-    } else {
-      // Find all non-suspended apps with a launcher icon.
-      for (ResolveInfo res : getAllLauncherIntentResolversSorted()) {
-        if (!showApps.contains(res.activityInfo.packageName)
-            && !isPackageSuspended(res.activityInfo.packageName)) {
-          showApps.add(res.activityInfo.packageName);
-        }
+    final List<String> candidates = new ArrayList<>();
+    for (ApplicationInfo applicationInfo : getAllInstalledApplicationsSorted()) {
+      if (isPackageSuspended(applicationInfo.packageName) == forUnsuspending) {
+        candidates.add(applicationInfo.packageName);
       }
     }
-
-    if (showApps.isEmpty()) {
-      showToast(forUnsuspending ? R.string.unsuspend_apps_empty : R.string.suspend_apps_empty);
-    } else {
-      AppInfoArrayAdapter appInfoArrayAdapter =
-          new AppInfoArrayAdapter(getActivity(), R.id.pkg_name, showApps, true);
-      final int dialogTitleResId;
-      final int successResId;
-      final int failureResId;
-      if (forUnsuspending) {
-        // Showing a dialog to unsuspend an app.
-        dialogTitleResId = R.string.unsuspend_apps_title;
-        successResId = R.string.unsuspend_apps_success;
-        failureResId = R.string.unsuspend_apps_failure;
-      } else {
-        // Showing a dialog to suspend an app.
-        dialogTitleResId = R.string.suspend_apps_title;
-        successResId = R.string.suspend_apps_success;
-        failureResId = R.string.suspend_apps_failure;
-      }
-      new AlertDialog.Builder(getActivity())
-          .setTitle(getString(dialogTitleResId))
-          .setAdapter(
-              appInfoArrayAdapter,
-              new DialogInterface.OnClickListener() {
-                @Override
-                public void onClick(DialogInterface dialog, int position) {
-                  String packageName = showApps.get(position);
-                  mDevicePolicyManagerGateway.setPackagesSuspended(
-                      new String[] {packageName},
-                      !forUnsuspending,
-                      (failed) -> {
-                        if (failed.length == 0) {
-                          onSuccessShowToast("setPackagesSuspended", successResId, packageName);
-                        } else {
-                          onErrorShowToast("setPackagesSuspended", failureResId, packageName);
-                        }
-                      },
-                      (e) ->
-                          onErrorShowToast("setPackagesSuspended", e, failureResId, packageName));
+    showSearchableAppList(
+        candidates,
+        forUnsuspending ? R.string.unsuspend_apps_title : R.string.suspend_apps_title,
+        (packageName) -> {
+          mDevicePolicyManagerGateway.setPackagesSuspended(
+              new String[] {packageName}, !forUnsuspending,
+              (failed) -> {
+                if (failed.length == 0) {
+                  AppSecurity.markPolicyEdited(getActivity());
+                  onSuccessShowToast("setPackagesSuspended",
+                      forUnsuspending ? R.string.unsuspend_apps_success : R.string.suspend_apps_success,
+                      packageName);
+                } else {
+                  onErrorShowToast("setPackagesSuspended",
+                      forUnsuspending ? R.string.unsuspend_apps_failure : R.string.suspend_apps_failure,
+                      packageName);
                 }
-              })
-          .show();
+              },
+              (e) -> onErrorShowToast("setPackagesSuspended", e,
+                  forUnsuspending ? R.string.unsuspend_apps_failure : R.string.suspend_apps_failure,
+                  packageName));
+        });
+  }
+
+  private interface AppSelectionAction {
+    void run(String packageName);
+  }
+
+  private void showSearchableAppList(
+      final List<String> packages, int titleResId, final AppSelectionAction action) {
+    if (packages.isEmpty()) {
+      showToast("No matching apps.");
+      return;
     }
+    final LinearLayout root = new LinearLayout(getActivity());
+    root.setOrientation(LinearLayout.VERTICAL);
+    final SearchView search = new SearchView(getActivity());
+    search.setQueryHint("Search apps or package names");
+    final ListView list = new ListView(getActivity());
+    root.addView(search, new LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+    root.addView(list, new LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+    final ArrayList<String> all = new ArrayList<>(packages);
+    final AlertDialog dialog = new AlertDialog.Builder(getActivity())
+        .setTitle(titleResId).setView(root)
+        .setNegativeButton(android.R.string.cancel, null).create();
+    final Runnable refresh = () -> {
+      String q = search.getQuery().toString().trim().toLowerCase(Locale.getDefault());
+      List<String> filtered = new ArrayList<>();
+      for (String pkg : all) {
+        String label = pkg;
+        try {
+          label = mPackageManager.getApplicationLabel(
+              mPackageManager.getApplicationInfo(pkg, 0)).toString();
+        } catch (PackageManager.NameNotFoundException ignored) {}
+        if (q.isEmpty()
+            || label.toLowerCase(Locale.getDefault()).contains(q)
+            || pkg.toLowerCase(Locale.getDefault()).contains(q)) {
+          filtered.add(pkg);
+        }
+      }
+      AppInfoArrayAdapter adapter =
+          new AppInfoArrayAdapter(getActivity(), R.id.pkg_name, filtered, true);
+      list.setAdapter(adapter);
+      list.setOnItemClickListener((parent, view, position, id) -> {
+        action.run(filtered.get(position));
+        dialog.dismiss();
+      });
+    };
+    search.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+      @Override public boolean onQueryTextSubmit(String query) { refresh.run(); return true; }
+      @Override public boolean onQueryTextChange(String newText) { refresh.run(); return true; }
+    });
+    dialog.setOnShowListener(d -> refresh.run());
+    dialog.show();
   }
 
   /** Shows an alert dialog with a list of packages with metered data disabled. */
