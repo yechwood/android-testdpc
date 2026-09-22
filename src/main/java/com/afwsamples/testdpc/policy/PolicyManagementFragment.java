@@ -3725,7 +3725,6 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
 
   /** Shows an alert dialog which displays a list of suspended/non-suspended apps. */
   @TargetApi(VERSION_CODES.N)
-    @TargetApi(VERSION_CODES.N)
   private void showSuspendAppsPrompt(final boolean forUnsuspending) {
     final List<String> candidates = new ArrayList<>();
     for (ApplicationInfo applicationInfo : getAllInstalledApplicationsSorted()) {
