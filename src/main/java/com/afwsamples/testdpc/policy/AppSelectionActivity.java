@@ -43,6 +43,7 @@ public class AppSelectionActivity extends Activity {
   public static final int MODE_UNHIDE = 2;
   public static final int MODE_SUSPEND = 3;
   public static final int MODE_UNSUSPEND = 4;
+  public static final int MODE_BLOCK_UNINSTALL = 5;
 
   private final ArrayList<AppItem> allApps = new ArrayList<>();
   private final Set<String> selected = new HashSet<>();
@@ -193,6 +194,10 @@ public class AppSelectionActivity extends Activity {
           include = devicePolicyManager.isApplicationHidden(admin, info.packageName);
         } else if (mode == MODE_SUSPEND) {
           include = !isPackageSuspended(info.packageName);
+        } else if (mode == MODE_UNSUSPEND) {
+          include = isPackageSuspended(info.packageName);
+        } else if (mode == MODE_BLOCK_UNINSTALL) {
+          include = true;
         } else {
           include = isPackageSuspended(info.packageName);
         }
@@ -372,6 +377,7 @@ public class AppSelectionActivity extends Activity {
       case MODE_UNHIDE: return "Unhide Apps";
       case MODE_SUSPEND: return "Suspend Apps";
       case MODE_UNSUSPEND: return "Unsuspend Apps";
+      case MODE_BLOCK_UNINSTALL: return "Restrict Uninstall";
       default: return "Hide Apps";
     }
   }
@@ -381,6 +387,7 @@ public class AppSelectionActivity extends Activity {
       case MODE_UNHIDE: return "Unhide selected";
       case MODE_SUSPEND: return "Suspend selected";
       case MODE_UNSUSPEND: return "Unsuspend selected";
+      case MODE_BLOCK_UNINSTALL: return "Restrict uninstall";
       default: return "Hide selected";
     }
   }
