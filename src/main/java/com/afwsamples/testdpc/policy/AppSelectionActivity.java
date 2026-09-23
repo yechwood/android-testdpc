@@ -185,7 +185,7 @@ public class AppSelectionActivity extends Activity {
       }
 
       List<ApplicationInfo> installed =
-          packageManager.getInstalledApplications(PackageManager.MATCH_ALL);
+          packageManager.getInstalledApplications(PackageManager.MATCH_UNINSTALLED_PACKAGES | PackageManager.MATCH_DISABLED_COMPONENTS);
       for (ApplicationInfo info : installed) {
         boolean include;
         if (mode == MODE_HIDE) {
