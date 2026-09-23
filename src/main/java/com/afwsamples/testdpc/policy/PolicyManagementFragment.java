@@ -83,14 +83,17 @@ import android.view.inputmethod.InputMethodInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.SearchView;
+import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.RequiresApi;
 import androidx.annotation.StringRes;
@@ -3667,15 +3670,23 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
     showSearchableAppList(
         candidates,
         showHiddenApps ? R.string.unhide_apps_title : R.string.hide_apps_title,
-        (packageName) -> {
-          boolean changed = mDevicePolicyManager.setApplicationHidden(
-              mAdminComponentName, packageName, !showHiddenApps);
-          if (changed) {
-            AppSecurity.markPolicyEdited(getActivity());
-            showToast(showHiddenApps ? R.string.unhide_apps_success : R.string.hide_apps_success, packageName);
-          } else {
-            showToast(getString(showHiddenApps ? R.string.unhide_apps_failure : R.string.hide_apps_failure, packageName), Toast.LENGTH_LONG);
+        (selectedPackages) -> {
+          int changedCount = 0;
+          int failedCount = 0;
+          for (String packageName : selectedPackages) {
+            if (mDevicePolicyManager.setApplicationHidden(
+                mAdminComponentName, packageName, !showHiddenApps)) {
+              changedCount++;
+            } else {
+              failedCount++;
+            }
           }
+          if (changedCount > 0) {
+            AppSecurity.markPolicyEdited(getActivity());
+          }
+          showToast((showHiddenApps ? "Unhidden " : "Hidden ")
+              + changedCount + " app(s)"
+              + (failedCount > 0 ? "; " + failedCount + " failed." : "."));
         });
   }
 
@@ -3738,29 +3749,26 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
     showSearchableAppList(
         candidates,
         forUnsuspending ? R.string.unsuspend_apps_title : R.string.suspend_apps_title,
-        (packageName) -> {
+        (selectedPackages) -> {
           mDevicePolicyManagerGateway.setPackagesSuspended(
-              new String[] {packageName}, !forUnsuspending,
+              selectedPackages.toArray(new String[0]), !forUnsuspending,
               (failed) -> {
-                if (failed.length == 0) {
+                int successCount = selectedPackages.size() - failed.length;
+                if (successCount > 0) {
                   AppSecurity.markPolicyEdited(getActivity());
-                  onSuccessShowToast("setPackagesSuspended",
-                      forUnsuspending ? R.string.unsuspend_apps_success : R.string.suspend_apps_success,
-                      packageName);
-                } else {
-                  onErrorShowToast("setPackagesSuspended",
-                      forUnsuspending ? R.string.unsuspend_apps_failure : R.string.suspend_apps_failure,
-                      packageName);
                 }
+                showToast((forUnsuspending ? "Unsuspended " : "Suspended ")
+                    + successCount + " app(s)"
+                    + (failed.length > 0 ? "; " + failed.length + " failed." : "."));
               },
               (e) -> onErrorShowToast("setPackagesSuspended", e,
                   forUnsuspending ? R.string.unsuspend_apps_failure : R.string.suspend_apps_failure,
-                  packageName));
+                  selectedPackages.toArray(new String[0])));
         });
   }
 
   private interface AppSelectionAction {
-    void run(String packageName);
+    void run(List<String> packageNames);
   }
 
   private void showSearchableAppList(
@@ -3773,7 +3781,6 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
     final Activity activity = getActivity();
     if (activity == null || activity.isFinishing()) return;
 
-    // Use a full-screen dialog so the app list has the entire available display.
     final LinearLayout root = new LinearLayout(activity);
     root.setOrientation(LinearLayout.VERTICAL);
     root.setPadding(0, 0, 0, 0);
@@ -3789,28 +3796,27 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
         LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
 
     final ArrayList<String> all = new ArrayList<>(packages);
-
-    // Launcher apps first, then all remaining apps alphabetically.
     Collections.sort(all, (a, b) -> {
       boolean aLauncher = isLauncherApp(a);
       boolean bLauncher = isLauncherApp(b);
       if (aLauncher != bLauncher) return aLauncher ? -1 : 1;
-
       String aLabel = getApplicationLabel(a);
       String bLabel = getApplicationLabel(b);
       int byLabel = aLabel.compareToIgnoreCase(bLabel);
       return byLabel != 0 ? byLabel : a.compareToIgnoreCase(b);
     });
 
+    final Set<String> selectedPackages = new HashSet<>();
     final AlertDialog dialog = new AlertDialog.Builder(activity)
         .setTitle(titleResId)
         .setView(root)
+        .setPositiveButton(titleResId, null)
         .setNegativeButton(android.R.string.cancel, null)
         .create();
 
     final Runnable refresh = () -> {
       String q = search.getQuery().toString().trim().toLowerCase(Locale.getDefault());
-      List<String> filtered = new ArrayList<>();
+      final List<String> filtered = new ArrayList<>();
       for (String pkg : all) {
         String label = getApplicationLabel(pkg);
         if (q.isEmpty()
@@ -3820,12 +3826,87 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
         }
       }
 
-      AppInfoArrayAdapter adapter =
-          new AppInfoArrayAdapter(activity, R.id.pkg_name, filtered, true);
-      list.setAdapter(adapter);
-      list.setOnItemClickListener((parent, view, position, id) -> {
-        action.run(filtered.get(position));
-        dialog.dismiss();
+      list.setAdapter(new BaseAdapter() {
+        @Override public int getCount() { return filtered.size(); }
+        @Override public String getItem(int position) { return filtered.get(position); }
+        @Override public long getItemId(int position) { return position; }
+
+        @Override
+        public View getView(int position, View convertView, ViewGroup parent) {
+          LinearLayout row;
+          if (convertView instanceof LinearLayout) {
+            row = (LinearLayout) convertView;
+          } else {
+            row = new LinearLayout(activity);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            row.setPadding(20, 16, 16, 16);
+
+            ImageView icon = new ImageView(activity);
+            icon.setId(android.R.id.icon);
+            row.addView(icon, new LinearLayout.LayoutParams(64, 64));
+
+            LinearLayout textContainer = new LinearLayout(activity);
+            textContainer.setOrientation(LinearLayout.VERTICAL);
+            textContainer.setPadding(20, 0, 8, 0);
+            row.addView(textContainer, new LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+            TextView name = new TextView(activity);
+            name.setId(android.R.id.text1);
+            name.setTextSize(18);
+            textContainer.addView(name);
+
+            TextView pkg = new TextView(activity);
+            pkg.setId(android.R.id.text2);
+            pkg.setTextSize(13);
+            textContainer.addView(pkg);
+
+            CheckBox check = new CheckBox(activity);
+            check.setId(android.R.id.checkbox);
+            row.addView(check, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+          }
+
+          String packageName = filtered.get(position);
+          ImageView icon = row.findViewById(android.R.id.icon);
+          TextView name = row.findViewById(android.R.id.text1);
+          TextView pkg = row.findViewById(android.R.id.text2);
+          CheckBox check = row.findViewById(android.R.id.checkbox);
+
+          try {
+            ApplicationInfo info = mPackageManager.getApplicationInfo(packageName, 0);
+            icon.setImageDrawable(mPackageManager.getApplicationIcon(info));
+            name.setText(mPackageManager.getApplicationLabel(info));
+          } catch (PackageManager.NameNotFoundException e) {
+            icon.setImageDrawable(null);
+            name.setText(packageName);
+          }
+          pkg.setText(packageName);
+          check.setChecked(selectedPackages.contains(packageName));
+
+          row.setOnClickListener(v -> {
+            if (selectedPackages.contains(packageName)) {
+              selectedPackages.remove(packageName);
+            } else {
+              selectedPackages.add(packageName);
+            }
+            check.setChecked(selectedPackages.contains(packageName));
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                .setEnabled(!selectedPackages.isEmpty());
+          });
+          check.setOnClickListener(v -> {
+            if (check.isChecked()) {
+              selectedPackages.add(packageName);
+            } else {
+              selectedPackages.remove(packageName);
+            }
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                .setEnabled(!selectedPackages.isEmpty());
+          });
+          return row;
+        }
       });
     };
 
@@ -3847,6 +3928,14 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
         window.setLayout(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
       }
+      dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
+      dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+        if (!selectedPackages.isEmpty()) {
+          ArrayList<String> selection = new ArrayList<>(selectedPackages);
+          action.run(selection);
+          dialog.dismiss();
+        }
+      });
       refresh.run();
     });
     dialog.show();
