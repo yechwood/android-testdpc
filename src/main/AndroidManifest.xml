@@ -21,7 +21,7 @@
           tools:ignore="MissingClass"
            android:versionCode="9016"
            android:versionName="9.0.16">
-    <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="35"/>
+    <uses-sdk android:minSdkVersion="23" android:targetSdkVersion="35"/>
 
     <uses-permission android:name="android.permission.GET_ACCOUNTS" />
     <uses-permission android:name="android.permission.MANAGE_ACCOUNTS" />
