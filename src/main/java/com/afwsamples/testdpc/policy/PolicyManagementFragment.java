@@ -3766,48 +3766,115 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
       showToast("No matching apps.");
       return;
     }
-    final LinearLayout root = new LinearLayout(getActivity());
+
+    final Activity activity = getActivity();
+    if (activity == null || activity.isFinishing()) return;
+
+    // Use a full-screen dialog so the app list has the entire available display.
+    final LinearLayout root = new LinearLayout(activity);
     root.setOrientation(LinearLayout.VERTICAL);
-    final SearchView search = new SearchView(getActivity());
+    root.setPadding(0, 0, 0, 0);
+
+    final SearchView search = new SearchView(activity);
     search.setQueryHint("Search apps or package names");
-    final ListView list = new ListView(getActivity());
     root.addView(search, new LinearLayout.LayoutParams(
         LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+
+    final ListView list = new ListView(activity);
+    list.setDividerHeight(1);
     root.addView(list, new LinearLayout.LayoutParams(
         LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+
     final ArrayList<String> all = new ArrayList<>(packages);
-    final AlertDialog dialog = new AlertDialog.Builder(getActivity())
-        .setTitle(titleResId).setView(root)
-        .setNegativeButton(android.R.string.cancel, null).create();
+
+    // Launcher apps first, then all remaining apps alphabetically.
+    Collections.sort(all, (a, b) -> {
+      boolean aLauncher = isLauncherApp(a);
+      boolean bLauncher = isLauncherApp(b);
+      if (aLauncher != bLauncher) return aLauncher ? -1 : 1;
+
+      String aLabel = getApplicationLabel(a);
+      String bLabel = getApplicationLabel(b);
+      int byLabel = aLabel.compareToIgnoreCase(bLabel);
+      return byLabel != 0 ? byLabel : a.compareToIgnoreCase(b);
+    });
+
+    final AlertDialog dialog = new AlertDialog.Builder(activity)
+        .setTitle(titleResId)
+        .setView(root)
+        .setNegativeButton(android.R.string.cancel, null)
+        .create();
+
     final Runnable refresh = () -> {
       String q = search.getQuery().toString().trim().toLowerCase(Locale.getDefault());
       List<String> filtered = new ArrayList<>();
       for (String pkg : all) {
-        String label = pkg;
-        try {
-          label = mPackageManager.getApplicationLabel(
-              mPackageManager.getApplicationInfo(pkg, 0)).toString();
-        } catch (PackageManager.NameNotFoundException ignored) {}
+        String label = getApplicationLabel(pkg);
         if (q.isEmpty()
             || label.toLowerCase(Locale.getDefault()).contains(q)
             || pkg.toLowerCase(Locale.getDefault()).contains(q)) {
           filtered.add(pkg);
         }
       }
+
       AppInfoArrayAdapter adapter =
-          new AppInfoArrayAdapter(getActivity(), R.id.pkg_name, filtered, true);
+          new AppInfoArrayAdapter(activity, R.id.pkg_name, filtered, true);
       list.setAdapter(adapter);
       list.setOnItemClickListener((parent, view, position, id) -> {
         action.run(filtered.get(position));
         dialog.dismiss();
       });
     };
+
     search.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
-      @Override public boolean onQueryTextSubmit(String query) { refresh.run(); return true; }
-      @Override public boolean onQueryTextChange(String newText) { refresh.run(); return true; }
+      @Override public boolean onQueryTextSubmit(String query) {
+        refresh.run();
+        return true;
+      }
+
+      @Override public boolean onQueryTextChange(String newText) {
+        refresh.run();
+        return true;
+      }
     });
-    dialog.setOnShowListener(d -> refresh.run());
+
+    dialog.setOnShowListener(d -> {
+      Window window = dialog.getWindow();
+      if (window != null) {
+        window.setLayout(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+      }
+      refresh.run();
+    });
     dialog.show();
+
+    Window window = dialog.getWindow();
+    if (window != null) {
+      window.setLayout(
+          ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+    }
+  }
+
+  private String getApplicationLabel(String packageName) {
+    try {
+      return mPackageManager.getApplicationLabel(
+          mPackageManager.getApplicationInfo(packageName, 0)).toString();
+    } catch (PackageManager.NameNotFoundException e) {
+      return packageName;
+    }
+  }
+
+  private boolean isLauncherApp(String packageName) {
+    Intent launcherIntent = Util.getLauncherIntent(getActivity());
+    List<ResolveInfo> resolvers =
+        mPackageManager.queryIntentActivities(launcherIntent, PackageManager.MATCH_ALL);
+    for (ResolveInfo resolveInfo : resolvers) {
+      ActivityInfo info = resolveInfo.activityInfo;
+      if (info != null && packageName.equals(info.packageName)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Shows an alert dialog with a list of packages with metered data disabled. */
