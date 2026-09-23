@@ -6,6 +6,8 @@ import android.text.TextUtils;
 
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import javax.crypto.Mac;
+import java.nio.ByteBuffer;
 import java.text.DateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -19,6 +21,7 @@ public final class AppSecurity {
   private static final String KEY_HASH = "hash";
   private static final String KEY_PASSWORD_SET = "password_set";
   private static final String KEY_POLICY_EDITED = "policy_edited";
+  private static final String KEY_TOTP_SECRET = "totp_secret";
   private static final int ITERATIONS = 120000;
   private static final int KEY_LENGTH = 256;
   private static final SecureRandom RANDOM = new SecureRandom();
@@ -49,6 +52,90 @@ public final class AppSecurity {
     if (saltHex == null || expectedHex == null) return false;
     byte[] actual = derive(password.toCharArray(), fromHex(saltHex));
     return actual != null && MessageDigest.isEqual(actual, fromHex(expectedHex));
+  }
+
+  public static boolean hasTotp(Context context) {
+    return !TextUtils.isEmpty(prefs(context).getString(KEY_TOTP_SECRET, null));
+  }
+
+  public static String enableTotp(Context context) {
+    byte[] secret = new byte[20];
+    RANDOM.nextBytes(secret);
+    String encoded = base32Encode(secret);
+    prefs(context).edit().putString(KEY_TOTP_SECRET, encoded).apply();
+    return encoded;
+  }
+
+  public static void disableTotp(Context context) {
+    prefs(context).edit().remove(KEY_TOTP_SECRET).apply();
+  }
+
+  public static String getTotpSecret(Context context) {
+    return prefs(context).getString(KEY_TOTP_SECRET, null);
+  }
+
+  public static boolean verifyTotp(Context context, String code) {
+    String secret = getTotpSecret(context);
+    if (TextUtils.isEmpty(secret) || code == null) return false;
+    String normalized = code.replaceAll("\\s+", "");
+    if (!normalized.matches("\\d{6}")) return false;
+    long step = System.currentTimeMillis() / 1000L / 30L;
+    for (long offset = -1; offset <= 1; offset++) {
+      if (generateTotpCode(secret, step + offset).equals(normalized)) return true;
+    }
+    return false;
+  }
+
+  public static String generateTotpCode(String secret, long counter) {
+    try {
+      byte[] key = base32Decode(secret);
+      byte[] data = ByteBuffer.allocate(8).putLong(counter).array();
+      Mac mac = Mac.getInstance("HmacSHA1");
+      mac.init(new javax.crypto.spec.SecretKeySpec(key, "HmacSHA1"));
+      byte[] hash = mac.doFinal(data);
+      int offset = hash[hash.length - 1] & 0x0f;
+      int binary = ((hash[offset] & 0x7f) << 24)
+          | ((hash[offset + 1] & 0xff) << 16)
+          | ((hash[offset + 2] & 0xff) << 8)
+          | (hash[offset + 3] & 0xff);
+      return String.format(Locale.US, "%06d", binary % 1000000);
+    } catch (Exception e) {
+      return "";
+    }
+  }
+
+  private static String base32Encode(byte[] data) {
+    final char[] alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567".toCharArray();
+    StringBuilder out = new StringBuilder((data.length * 8 + 4) / 5);
+    int buffer = 0, bits = 0;
+    for (byte b : data) {
+      buffer = (buffer << 8) | (b & 0xff);
+      bits += 8;
+      while (bits >= 5) {
+        out.append(alphabet[(buffer >> (bits - 5)) & 31]);
+        bits -= 5;
+      }
+    }
+    if (bits > 0) out.append(alphabet[(buffer << (5 - bits)) & 31]);
+    return out.toString();
+  }
+
+  private static byte[] base32Decode(String value) {
+    String s = value.replaceAll("[=\\s-]", "").toUpperCase(Locale.US);
+    byte[] out = new byte[s.length() * 5 / 8];
+    int buffer = 0, bits = 0, index = 0;
+    for (int i = 0; i < s.length(); i++) {
+      char ch = s.charAt(i);
+      int v = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567".indexOf(ch);
+      if (v < 0) throw new IllegalArgumentException("Invalid Base32 secret");
+      buffer = (buffer << 5) | v;
+      bits += 5;
+      if (bits >= 8) {
+        out[index++] = (byte) ((buffer >> (bits - 8)) & 0xff);
+        bits -= 8;
+      }
+    }
+    return out;
   }
 
   public static long getPasswordSetTime(Context context) {
