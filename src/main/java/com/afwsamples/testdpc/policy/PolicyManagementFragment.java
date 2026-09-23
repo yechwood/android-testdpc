@@ -1938,12 +1938,6 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
           getActivity().unregisterReceiver(this);
         } catch (IllegalArgumentException ignored) {
         }
-        AppSecurity.markPolicyEdited(getActivity());
-        Activity activity = getActivity();
-        if (activity instanceof com.afwsamples.testdpc.PolicyManagementActivity) {
-          ((com.afwsamples.testdpc.PolicyManagementActivity) activity)
-              .recordPolicyChange("Restored uninstall blocking for " + packageName);
-        }
       }
     };
     IntentFilter filter = new IntentFilter(action);
