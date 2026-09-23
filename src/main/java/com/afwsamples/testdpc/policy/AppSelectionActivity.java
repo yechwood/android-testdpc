@@ -163,9 +163,9 @@ public class AppSelectionActivity extends Activity {
         } else if (mode == MODE_UNHIDE) {
           include = devicePolicyManager.isApplicationHidden(admin, info.packageName);
         } else if (mode == MODE_SUSPEND) {
-          include = !devicePolicyManager.isPackageSuspended(admin, info.packageName);
+          include = !isPackageSuspended(info.packageName);
         } else {
-          include = devicePolicyManager.isPackageSuspended(admin, info.packageName);
+          include = isPackageSuspended(info.packageName);
         }
         if (!include) continue;
         CharSequence label = packageManager.getApplicationLabel(info);
@@ -255,6 +255,16 @@ public class AppSelectionActivity extends Activity {
       row.setOnClickListener(toggle);
       box.setOnClickListener(toggle);
       return row;
+    }
+  }
+
+  private boolean isPackageSuspended(String packageName) {
+    try {
+      return devicePolicyManager.isPackageSuspended(admin, packageName);
+    } catch (PackageManager.NameNotFoundException e) {
+      return false;
+    } catch (RuntimeException e) {
+      return false;
     }
   }
 
