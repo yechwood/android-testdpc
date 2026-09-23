@@ -38,6 +38,7 @@ import java.util.Set;
 public class AppSelectionActivity extends Activity {
   public static final String EXTRA_MODE = "mode";
   public static final String EXTRA_SELECTED_PACKAGES = "selected_packages";
+  public static final String EXTRA_QUICK_ACCESS_RETURN = "quick_access_return";
   public static final int MODE_HIDE = 1;
   public static final int MODE_UNHIDE = 2;
   public static final int MODE_SUSPEND = 3;
@@ -67,6 +68,16 @@ public class AppSelectionActivity extends Activity {
       this.icon = icon;
       this.launcher = launcher;
     }
+  }
+
+  @Override
+  public void onBackPressed() {
+    if (getIntent().getBooleanExtra(EXTRA_QUICK_ACCESS_RETURN, false)) {
+      Intent result = new Intent();
+      result.putExtra(EXTRA_QUICK_ACCESS_RETURN, true);
+      setResult(RESULT_CANCELED, result);
+    }
+    super.onBackPressed();
   }
 
   @Override
