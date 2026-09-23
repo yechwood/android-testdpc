@@ -123,13 +123,23 @@ public class AppSelectionActivity extends Activity {
     selectAllButton = new android.widget.Button(this);
     selectAllButton.setText("Select all");
     selectAllButton.setAllCaps(false);
-    bottom.addView(selectAllButton, new LinearLayout.LayoutParams(120, 56));
+    selectAllButton.setTextSize(14);
+    selectAllButton.setMinWidth(0);
+    selectAllButton.setPadding(2, 0, 2, 0);
+    LinearLayout.LayoutParams selectLp = new LinearLayout.LayoutParams(0, 56, 1.15f);
+    selectLp.leftMargin = 4;
+    selectLp.rightMargin = 4;
+    bottom.addView(selectAllButton, selectLp);
 
     actionButton = new android.widget.Button(this);
     actionButton.setText(getActionText());
     actionButton.setAllCaps(false);
+    actionButton.setTextSize(14);
+    actionButton.setMinWidth(0);
+    actionButton.setPadding(2, 0, 2, 0);
     actionButton.setEnabled(false);
-    bottom.addView(actionButton, new LinearLayout.LayoutParams(150, 56));
+    LinearLayout.LayoutParams actionLp = new LinearLayout.LayoutParams(0, 56, 1f);
+    bottom.addView(actionButton, actionLp);
     root.addView(bottom, new LinearLayout.LayoutParams(-1, 72));
 
     search.addTextChangedListener(new android.text.TextWatcher() {
@@ -295,7 +305,18 @@ public class AppSelectionActivity extends Activity {
         box.setChecked(selected.contains(item.packageName));
         if (actionButton != null) actionButton.setEnabled(!selected.isEmpty());
         if (selectedText != null) selectedText.setText(selected.size() + " selected");
-        if (selectAllButton != null) selectAllButton.setText("Select all");
+        if (selectAllButton != null) {
+          String q = search == null ? "" : search.getText().toString().trim().toLowerCase(Locale.getDefault());
+          int visible = 0, visibleSelected = 0;
+          for (AppItem a : allApps) {
+            if (q.isEmpty() || a.label.toLowerCase(Locale.getDefault()).contains(q)
+                || a.packageName.toLowerCase(Locale.getDefault()).contains(q)) {
+              visible++;
+              if (selected.contains(a.packageName)) visibleSelected++;
+            }
+          }
+          selectAllButton.setText(visible > 0 && visible == visibleSelected ? "Unselect all" : "Select all");
+        }
       };
       row.setOnClickListener(toggle);
       box.setOnClickListener(toggle);
