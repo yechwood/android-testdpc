@@ -103,7 +103,6 @@ public class PolicyManagementActivity extends DumpableActivity
     setContentView(R.layout.activity_main);
     final String quickAction = getIntent().getStringExtra(EXTRA_QUICK_ACTION);
     getIntent().removeExtra(EXTRA_QUICK_ACTION);
-    getIntent().removeExtra(EXTRA_RETURN_TO_QUICK_ACCESS);
     if (getFragmentManager().findFragmentByTag(PolicyManagementFragment.FRAGMENT_TAG) == null) {
       getFragmentManager()
           .beginTransaction()
