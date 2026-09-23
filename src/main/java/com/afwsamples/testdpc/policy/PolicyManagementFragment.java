@@ -27,6 +27,7 @@ import android.accounts.OperationCanceledException;
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Activity;
+import android.app.PendingIntent;
 import android.app.ActivityManager;
 import android.app.ActivityOptions;
 import android.app.AlertDialog;
@@ -38,14 +39,18 @@ import android.app.admin.DevicePolicyManager.InstallSystemUpdateCallback;
 import android.app.admin.PackagePolicy;
 import android.app.admin.SystemUpdateInfo;
 import android.app.admin.WifiSsidPolicy;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentSender;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.ActivityInfo;
+import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.location.LocationManager;
@@ -3687,7 +3692,7 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
   private void showUninstallPackagePrompt() {
     final List<String> installedApps = new ArrayList<>();
     for (ResolveInfo res : getAllLauncherIntentResolversSorted()) {
-      if (!installedApps.contains(res.activityInfo.packageName)) { // O(N^2) but not critical
+      if (!installedApps.contains(res.activityInfo.packageName)) {
         installedApps.add(res.activityInfo.packageName);
       }
     }
@@ -3697,14 +3702,75 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
         .setTitle(getString(R.string.uninstall_packages_title))
         .setAdapter(
             appInfoArrayAdapter,
-            new DialogInterface.OnClickListener() {
-              @Override
-              public void onClick(DialogInterface dialog, int position) {
-                String packageName = installedApps.get(position);
-                PackageInstallationUtils.uninstallPackage(getContext(), packageName);
-              }
-            })
+            (dialog, position) -> uninstallWithTemporaryUnblock(installedApps.get(position)))
         .show();
+  }
+
+  private void uninstallWithTemporaryUnblock(String packageName) {
+    boolean wasBlocked = false;
+    try {
+      wasBlocked = mDevicePolicyManager.isUninstallBlocked(mAdminComponentName, packageName);
+    } catch (RuntimeException e) {
+      Log.w(TAG, "Could not query uninstall block for " + packageName, e);
+    }
+
+    if (!wasBlocked) {
+      PackageInstallationUtils.uninstallPackage(getContext(), packageName);
+      return;
+    }
+
+    try {
+      mDevicePolicyManager.setUninstallBlocked(mAdminComponentName, packageName, false);
+    } catch (RuntimeException e) {
+      showToast("Could not temporarily allow uninstall for " + packageName, Toast.LENGTH_LONG);
+      return;
+    }
+
+    final String action = getPackageName() + ".UNINSTALL_COMPLETE_" + packageName;
+    final BroadcastReceiver receiver = new BroadcastReceiver() {
+      @Override
+      public void onReceive(Context context, Intent intent) {
+        try {
+          mDevicePolicyManager.setUninstallBlocked(mAdminComponentName, packageName, true);
+        } catch (RuntimeException e) {
+          Log.e(TAG, "Failed to restore uninstall block for " + packageName, e);
+        }
+        try {
+          unregisterReceiver(this);
+        } catch (IllegalArgumentException ignored) {
+        }
+        AppSecurity.markPolicyEdited(getActivity());
+        Activity activity = getActivity();
+        if (activity instanceof com.afwsamples.testdpc.PolicyManagementActivity) {
+          ((com.afwsamples.testdpc.PolicyManagementActivity) activity)
+              .recordPolicyChange("Restored uninstall blocking for " + packageName);
+        }
+      }
+    };
+    IntentFilter filter = new IntentFilter(action);
+    if (Build.VERSION.SDK_INT >= 33) {
+      getActivity().registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED);
+    } else {
+      getActivity().registerReceiver(receiver, filter);
+    }
+
+    try {
+      PackageInstaller installer = getActivity().getPackageManager().getPackageInstaller();
+      Intent callback = new Intent(action).setPackage(getActivity().getPackageName());
+      PendingIntent pendingIntent = PendingIntent.getBroadcast(
+          getActivity(), packageName.hashCode(), callback, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+      installer.uninstall(packageName, pendingIntent.getIntentSender());
+    } catch (RuntimeException e) {
+      try {
+        mDevicePolicyManager.setUninstallBlocked(mAdminComponentName, packageName, true);
+      } catch (RuntimeException ignored) {
+      }
+      try {
+        getActivity().unregisterReceiver(receiver);
+      } catch (IllegalArgumentException ignored) {
+      }
+      showToast("Could not start uninstall. The uninstall policy was restored.", Toast.LENGTH_LONG);
+    }
   }
 
   /**
