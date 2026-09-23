@@ -3442,6 +3442,14 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
   public void onActivityResult(int requestCode, int resultCode, Intent data) {
     super.onActivityResult(requestCode, resultCode, data);
 
+    if (requestCode == APP_SELECTION_REQUEST_CODE && resultCode != Activity.RESULT_OK) {
+      if (getActivity() instanceof com.afwsamples.testdpc.PolicyManagementActivity
+          && data != null && data.getBooleanExtra(EXTRA_QUICK_ACCESS_RETURN, false)) {
+        ((com.afwsamples.testdpc.PolicyManagementActivity) getActivity()).finishForQuickAccessReturn();
+      }
+      return;
+    }
+
     if (requestCode == APP_SELECTION_REQUEST_CODE && resultCode == Activity.RESULT_OK && data != null) {
       ArrayList<String> selected = data.getStringArrayListExtra(AppSelectionActivity.EXTRA_SELECTED_PACKAGES);
       if (selected == null || selected.isEmpty()) return;
@@ -3835,6 +3843,11 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
     Intent intent = new Intent(getActivity(), AppSelectionActivity.class);
     intent.putExtra(AppSelectionActivity.EXTRA_MODE,
         forUnsuspending ? AppSelectionActivity.MODE_UNSUSPEND : AppSelectionActivity.MODE_SUSPEND);
+    if (getActivity() instanceof com.afwsamples.testdpc.PolicyManagementActivity
+        && getActivity().getIntent().getBooleanExtra(
+            com.afwsamples.testdpc.PolicyManagementActivity.EXTRA_RETURN_TO_QUICK_ACCESS, false)) {
+      intent.putExtra(EXTRA_QUICK_ACCESS_RETURN, true);
+    }
     startActivityForResult(intent, APP_SELECTION_REQUEST_CODE);
   }
 
