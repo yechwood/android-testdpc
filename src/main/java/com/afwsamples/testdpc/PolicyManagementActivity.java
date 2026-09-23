@@ -26,7 +26,11 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Button;
+import android.widget.ImageView;
+import android.widget.Toast;
 import android.content.Intent;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.graphics.Color;
@@ -48,6 +52,10 @@ import com.afwsamples.testdpc.policy.PolicyManagementFragment;
 import com.afwsamples.testdpc.search.PolicySearchFragment;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.WriterException;
+import com.google.zxing.common.BitMatrix;
+import com.google.zxing.qrcode.QRCodeWriter;
 
 /**
  * An entry activity that shows a profile setup fragment if the app is not a profile or device
@@ -322,26 +330,125 @@ public class PolicyManagementActivity extends DumpableActivity
       showTotpSecret(secret);
       return;
     }
-    new AlertDialog.Builder(this)
-        .setTitle("One-time code enabled")
-        .setMessage("Authenticator secret:\n\n" + AppSecurity.getTotpSecret(this)
-            + "\n\nAdd this secret as a TOTP account in a compatible authenticator. Codes change every 30 seconds.")
-        .setPositiveButton("Regenerate", (d, w) -> {
-          String secret = AppSecurity.enableTotp(this);
-          showTotpSecret(secret);
-        })
-        .setNeutralButton("Disable", (d, w) -> AppSecurity.disableTotp(this))
-        .setNegativeButton("Close", null)
-        .show();
+    showTotpSecret(AppSecurity.getTotpSecret(this));
+  }
+
+  private void copyTotpSecret(String secret) {
+    ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+    if (clipboard != null) {
+      clipboard.setPrimaryClip(ClipData.newPlainText("Authenticator secret", secret));
+      Toast.makeText(this, "Secret copied to clipboard", Toast.LENGTH_SHORT).show();
+    }
   }
 
   private void showTotpSecret(String secret) {
-    new AlertDialog.Builder(this)
-        .setTitle("One-time code enabled")
-        .setMessage("Authenticator secret:\n\n" + secret
-            + "\n\nUse the current 6-digit code from your authenticator to unlock Test DPC.")
+    final int dp = (int) getResources().getDisplayMetrics().density;
+    LinearLayout card = new LinearLayout(this);
+    card.setOrientation(LinearLayout.VERTICAL);
+    card.setPadding(24 * dp, 20 * dp, 24 * dp, 8 * dp);
+
+    TextView intro = new TextView(this);
+    intro.setText("Scan the QR code or copy the secret into your authenticator app. Codes refresh every 30 seconds.");
+    intro.setTextSize(15);
+    intro.setTextColor(Color.DKGRAY);
+    card.addView(intro, new LinearLayout.LayoutParams(-1, -2));
+
+    TextView secretView = new TextView(this);
+    secretView.setText(secret);
+    secretView.setTextSize(19);
+    secretView.setTypeface(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD);
+    secretView.setTextColor(Color.rgb(25, 35, 50));
+    secretView.setGravity(Gravity.CENTER);
+    secretView.setPadding(16 * dp, 16 * dp, 16 * dp, 16 * dp);
+    GradientDrawable secretBg = new GradientDrawable();
+    secretBg.setColor(Color.rgb(238, 242, 247));
+    secretBg.setCornerRadius(18 * dp);
+    secretView.setBackground(secretBg);
+    LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-1, -2);
+    sp.topMargin = 18 * dp;
+    card.addView(secretView, sp);
+
+    Button copy = new Button(this);
+    copy.setText("Copy secret");
+    copy.setAllCaps(false);
+    copy.setOnClickListener(v -> copyTotpSecret(secret));
+    card.addView(copy, new LinearLayout.LayoutParams(-1, 52 * dp));
+
+    Button qr = new Button(this);
+    qr.setText("Show QR code");
+    qr.setAllCaps(false);
+    qr.setOnClickListener(v -> showTotpQr(secret));
+    card.addView(qr, new LinearLayout.LayoutParams(-1, 52 * dp));
+
+    AlertDialog dialog = new AlertDialog.Builder(this)
+        .setTitle("Authenticator setup")
+        .setView(card)
         .setPositiveButton("Done", null)
-        .show();
+        .setNeutralButton(AppSecurity.hasTotp(this) ? "Regenerate" : "Disable", null)
+        .setNegativeButton("Close", null)
+        .create();
+    dialog.setOnShowListener(d -> {
+      Button neutral = dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
+      neutral.setOnClickListener(v -> {
+        if (AppSecurity.hasTotp(this)) {
+          String next = AppSecurity.enableTotp(this);
+          dialog.dismiss();
+          showTotpSecret(next);
+        } else {
+          AppSecurity.disableTotp(this);
+          dialog.dismiss();
+        }
+      });
+    });
+    dialog.show();
+  }
+
+  private void showTotpQr(String secret) {
+    final int dp = (int) getResources().getDisplayMetrics().density;
+    String otpUri = "otpauth://totp/TestDPC?secret=" + secret + "&issuer=Test%20DPC";
+    try {
+      int size = Math.min((int) (280 * dp), getResources().getDisplayMetrics().widthPixels - 72 * dp);
+      size = Math.max(size, 180 * dp);
+      BitMatrix matrix = new QRCodeWriter().encode(otpUri, BarcodeFormat.QR_CODE, size, size);
+      int[] pixels = new int[size * size];
+      for (int y = 0; y < size; y++) {
+        for (int x = 0; x < size; x++) {
+          pixels[y * size + x] = matrix.get(x, y) ? Color.BLACK : Color.WHITE;
+        }
+      }
+      android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888);
+      bitmap.setPixels(pixels, 0, size, 0, 0, size, size);
+
+      LinearLayout layout = new LinearLayout(this);
+      layout.setOrientation(LinearLayout.VERTICAL);
+      layout.setGravity(Gravity.CENTER_HORIZONTAL);
+      layout.setPadding(24 * dp, 16 * dp, 24 * dp, 8 * dp);
+      ImageView image = new ImageView(this);
+      image.setImageBitmap(bitmap);
+      image.setPadding(8 * dp, 8 * dp, 8 * dp, 8 * dp);
+      layout.addView(image, new LinearLayout.LayoutParams(size + 16 * dp, size + 16 * dp));
+
+      TextView label = new TextView(this);
+      label.setText("Test DPC • one-time code");
+      label.setTextSize(14);
+      label.setTextColor(Color.GRAY);
+      label.setGravity(Gravity.CENTER);
+      layout.addView(label, new LinearLayout.LayoutParams(-1, 42 * dp));
+
+      new AlertDialog.Builder(this)
+          .setTitle("Scan QR code")
+          .setView(layout)
+          .setPositiveButton("Copy secret", (d, w) -> copyTotpSecret(secret))
+          .setNegativeButton("Done", null)
+          .show();
+    } catch (WriterException e) {
+      new AlertDialog.Builder(this)
+          .setTitle("QR code")
+          .setMessage("Could not create the QR code. You can copy the secret instead.")
+          .setPositiveButton("Copy secret", (d, w) -> copyTotpSecret(secret))
+          .setNegativeButton("Close", null)
+          .show();
+    }
   }
 
   private void showSetPasswordDialog() {
