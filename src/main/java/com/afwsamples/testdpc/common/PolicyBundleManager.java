@@ -5,14 +5,11 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
-import android.os.Build;
-import org.json.JSONArray;
-import org.json.JSONObject;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 public final class PolicyBundleManager {
   private PolicyBundleManager() {}
@@ -64,8 +61,12 @@ public final class PolicyBundleManager {
   public static void importInto(Context context, InputStream in) throws Exception {
     byte[] data = readAll(in);
     JSONObject root = new JSONObject(new String(data, java.nio.charset.StandardCharsets.UTF_8));
-    if (!"TestDPC Policy Profile".equals(root.optString("format"))) throw new IllegalArgumentException("Not a TestDPC policy profile");
-    if (root.optInt("version", 0) != 1) throw new IllegalArgumentException("Unsupported policy profile version");
+    if (!"TestDPC Policy Profile".equals(root.optString("format"))) {
+      throw new IllegalArgumentException("Not a TestDPC policy profile");
+    }
+    if (root.optInt("version", 0) != 1) {
+      throw new IllegalArgumentException("Unsupported policy profile version");
+    }
 
     SharedPreferences prefs = android.preference.PreferenceManager.getDefaultSharedPreferences(context);
     SharedPreferences.Editor editor = prefs.edit().clear();
@@ -97,24 +98,32 @@ public final class PolicyBundleManager {
     applyPackageList(context, dpm, admin, root.optJSONArray("blockedUninstallPackages"), 3);
   }
 
-  private static void applyPackageList(Context context, DevicePolicyManager dpm, ComponentName admin, JSONArray desired, int type) {
+  private static void applyPackageList(Context context, DevicePolicyManager dpm,
+      ComponentName admin, JSONArray desired, int type) {
     java.util.HashSet<String> set = new java.util.HashSet<>();
-    if (desired != null) for (int i = 0; i < desired.length(); i++) set.add(desired.optString(i));
+    if (desired != null) {
+      for (int i = 0; i < desired.length(); i++) set.add(desired.optString(i));
+    }
     for (ApplicationInfo app : context.getPackageManager().getInstalledApplications(
         android.content.pm.PackageManager.MATCH_ALL)) {
       String pkg = app.packageName;
       boolean want = set.contains(pkg);
       try {
-        if (type == 1) dpm.setApplicationHidden(admin, pkg, want);
-        else if (type == 2) dpm.setPackagesSuspended(new String[]{pkg}, want);
-        else dpm.setUninstallBlocked(admin, pkg, want);
+        if (type == 1) {
+          dpm.setApplicationHidden(admin, pkg, want);
+        } else if (type == 2) {
+          dpm.setPackagesSuspended(admin, new String[]{pkg}, want);
+        } else {
+          dpm.setUninstallBlocked(admin, pkg, want);
+        }
       } catch (Exception ignored) {}
     }
   }
 
   private static byte[] readAll(InputStream in) throws Exception {
     java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-    byte[] buf = new byte[8192]; int n;
+    byte[] buf = new byte[8192];
+    int n;
     while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
     return out.toByteArray();
   }
