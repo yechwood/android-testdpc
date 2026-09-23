@@ -99,9 +99,10 @@ public class PickTransferComponentFragment extends Fragment {
                   createTransferBundle());
               result.setText("Success! Ownership transfer completed.");
               transferButton.setEnabled(false);
-              // The current DPC immediately loses ownership. Close this activity before any
-              // later lifecycle callback tries to use owner-only APIs.
-              if (getActivity() != null) getActivity().finish();
+              Intent success = new Intent(getActivity(), TransferSuccessActivity.class);
+              success.putExtra(TransferSuccessActivity.EXTRA_TARGET, target.flattenToShortString());
+              success.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+              getActivity().startActivity(success);
             } catch (Throwable e) {
               result.setText(getStackTrace(e));
             }
