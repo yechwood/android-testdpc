@@ -64,6 +64,7 @@ public class PolicyManagementActivity extends DumpableActivity
   private static final String LOCK_MODE_ACTION_STOP = "stop";
   public static final String EXTRA_QUICK_ACTION = "quick_action";
   public static final String EXTRA_SKIP_PASSWORD = "skip_password";
+  public static final String EXTRA_RETURN_TO_QUICK_ACCESS = "return_to_quick_access";
   private static boolean sAuthenticatedSession;
 
   /** Called only by the in-app Quick Access screen after the protected main UI is open. */
@@ -76,6 +77,7 @@ public class PolicyManagementActivity extends DumpableActivity
   private boolean mLockTaskMode;
   private boolean mUnlocked;
   private boolean mLeavingWithPrompt;
+  private boolean mReturnToQuickAccess;
   private int mTapCount;
   private long mLastTapTime;
   private final java.util.ArrayList<String> mSessionChanges = new java.util.ArrayList<>();
@@ -85,6 +87,7 @@ public class PolicyManagementActivity extends DumpableActivity
     super.onCreate(savedInstanceState);
     getFragmentManager().addOnBackStackChangedListener(this);
     boolean skipPassword = getIntent().getBooleanExtra(EXTRA_SKIP_PASSWORD, false) && sAuthenticatedSession;
+    mReturnToQuickAccess = getIntent().getBooleanExtra(EXTRA_RETURN_TO_QUICK_ACCESS, false);
     if (AppSecurity.hasPassword(this) && !skipPassword) {
       showProtectionScreen();
     } else {
@@ -100,6 +103,7 @@ public class PolicyManagementActivity extends DumpableActivity
     setContentView(R.layout.activity_main);
     final String quickAction = getIntent().getStringExtra(EXTRA_QUICK_ACTION);
     getIntent().removeExtra(EXTRA_QUICK_ACTION);
+    getIntent().removeExtra(EXTRA_RETURN_TO_QUICK_ACCESS);
     if (getFragmentManager().findFragmentByTag(PolicyManagementFragment.FRAGMENT_TAG) == null) {
       getFragmentManager()
           .beginTransaction()
@@ -429,6 +433,11 @@ public class PolicyManagementActivity extends DumpableActivity
   @Override
   public void onBackPressed() {
     if (confirmLeaving()) return;
+    if (mReturnToQuickAccess) {
+      sAuthenticatedSession = true;
+      finish();
+      return;
+    }
     Fragment currFragment = getFragmentManager().findFragmentById(R.id.container);
     boolean onBackPressHandled = false;
     if (currFragment != null && currFragment instanceof OnBackPressedHandler) {
