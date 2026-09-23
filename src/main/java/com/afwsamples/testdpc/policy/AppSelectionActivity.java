@@ -322,7 +322,7 @@ public class AppSelectionActivity extends Activity {
     if (selectedText != null) selectedText.setText(selected.size() + " selected");
     if (actionButton != null) actionButton.setEnabled(!selected.isEmpty());
     if (selectAllButton != null) selectAllButton.setText(selected.containsAll(visible) ? "Unselect all" : "Select all");
-    if (listView != null && listView.getAdapter() != null) listView.getAdapter().notifyDataSetChanged();
+    if (listView != null && listView.getAdapter() != null) ((BaseAdapter) listView.getAdapter()).notifyDataSetChanged();
   }
 
   private boolean isPackageSuspended(String packageName) {
