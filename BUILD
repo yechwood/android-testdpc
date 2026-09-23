@@ -99,6 +99,8 @@ android_library(
         ":bouncycastle_deps",
         ":guava_deps",
         "@setupdesign//:setupdesign",
+        "@maven//:dev_rikka_shizuku_api",
+        "@maven//:dev_rikka_shizuku_provider",
         "@setupcompat//:setupcompat",
     ],
 )
