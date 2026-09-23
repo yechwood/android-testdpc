@@ -163,9 +163,9 @@ public class AppSelectionActivity extends Activity {
         } else if (mode == MODE_UNHIDE) {
           include = devicePolicyManager.isApplicationHidden(admin, info.packageName);
         } else if (mode == MODE_SUSPEND) {
-          include = !devicePolicyManager.isPackageSuspended(info.packageName);
+          include = !devicePolicyManager.isPackageSuspended(admin, info.packageName);
         } else {
-          include = devicePolicyManager.isPackageSuspended(info.packageName);
+          include = devicePolicyManager.isPackageSuspended(admin, info.packageName);
         }
         if (!include) continue;
         CharSequence label = packageManager.getApplicationLabel(info);
