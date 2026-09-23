@@ -1049,6 +1049,12 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
     reloadAffiliatedApis();
   }
 
+  public void openQuickAction(String key) {
+    Preference p = findPreference(key);
+    if (p != null) p.performClick();
+    else Toast.makeText(getActivity(), "This policy is not available on this device.", Toast.LENGTH_LONG).show();
+  }
+
   @Override
   @TargetApi(VERSION_CODES.N)
   public boolean onPreferenceClick(Preference preference) {
