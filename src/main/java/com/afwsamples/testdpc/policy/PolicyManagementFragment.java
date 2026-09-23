@@ -1189,7 +1189,7 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
       showFragment(new ManageAffiliationIdsFragment());
       return true;
     } else if (BLOCK_UNINSTALLATION_BY_PKG_KEY.equals(key)) {
-      showBlockUninstallationByPackageNamePrompt();
+      showBlockUninstallationAppSelection();
       return true;
     } else if (BLOCK_UNINSTALLATION_LIST_KEY.equals(key)) {
       showBlockUninstallationPrompt();
@@ -3454,6 +3454,29 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
       ArrayList<String> selected = data.getStringArrayListExtra(AppSelectionActivity.EXTRA_SELECTED_PACKAGES);
       if (selected == null || selected.isEmpty()) return;
       int mode = data.getIntExtra(AppSelectionActivity.EXTRA_MODE, AppSelectionActivity.MODE_HIDE);
+      if (mode == AppSelectionActivity.MODE_BLOCK_UNINSTALL) {
+        int changed = 0;
+        for (String packageName : selected) {
+          try {
+            mDevicePolicyManager.setUninstallBlocked(mAdminComponentName, packageName, true);
+            changed++;
+          } catch (RuntimeException e) {
+            Log.w(TAG, "Could not block uninstall for " + packageName, e);
+          }
+        }
+        if (changed > 0) {
+          Activity a = getActivity();
+          if (a instanceof com.afwsamples.testdpc.PolicyManagementActivity) {
+            ((com.afwsamples.testdpc.PolicyManagementActivity) a)
+                .recordPolicyChange("Restricted uninstall for " + changed + " app(s)");
+          } else {
+            AppSecurity.markPolicyEdited(getActivity());
+          }
+        }
+        showToast("Uninstall restricted for " + changed + " app(s).");
+        finishQuickAccessReturnIfNeeded();
+        return;
+      }
       if (mode == AppSelectionActivity.MODE_HIDE || mode == AppSelectionActivity.MODE_UNHIDE) {
         boolean unhide = mode == AppSelectionActivity.MODE_UNHIDE;
         int changed = 0;
@@ -3586,6 +3609,20 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
             })
         .setNegativeButton(android.R.string.cancel, null)
         .show();
+  }
+
+  /** Opens the same full-screen installed-app picker used by Hide Apps for uninstall restriction. */
+  private void showBlockUninstallationAppSelection() {
+    Activity activity = getActivity();
+    if (activity == null || activity.isFinishing()) return;
+    Intent intent = new Intent(activity, AppSelectionActivity.class);
+    intent.putExtra(AppSelectionActivity.EXTRA_MODE, AppSelectionActivity.MODE_BLOCK_UNINSTALL);
+    if (activity instanceof com.afwsamples.testdpc.PolicyManagementActivity
+        && activity.getIntent().getBooleanExtra(
+            com.afwsamples.testdpc.PolicyManagementActivity.EXTRA_RETURN_TO_QUICK_ACCESS, false)) {
+      intent.putExtra(EXTRA_QUICK_ACCESS_RETURN, true);
+    }
+    startActivityForResult(intent, APP_SELECTION_REQUEST_CODE);
   }
 
   /**
