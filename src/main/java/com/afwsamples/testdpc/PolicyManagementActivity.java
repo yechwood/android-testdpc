@@ -63,6 +63,8 @@ public class PolicyManagementActivity extends DumpableActivity
   private static final String LOCK_MODE_ACTION_STATUS = "status";
   private static final String LOCK_MODE_ACTION_STOP = "stop";
   public static final String EXTRA_QUICK_ACTION = "quick_action";
+  public static final String EXTRA_SKIP_PASSWORD = "skip_password";
+  private static boolean sAuthenticatedSession;
   private static final int POLICY_EXPORT_REQUEST = 9901;
   private static final int POLICY_IMPORT_REQUEST = 9902;
 
@@ -77,10 +79,12 @@ public class PolicyManagementActivity extends DumpableActivity
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     getFragmentManager().addOnBackStackChangedListener(this);
-    if (AppSecurity.hasPassword(this)) {
+    boolean skipPassword = getIntent().getBooleanExtra(EXTRA_SKIP_PASSWORD, false) && sAuthenticatedSession;
+    if (AppSecurity.hasPassword(this) && !skipPassword) {
       showProtectionScreen();
     } else {
       mUnlocked = true;
+      sAuthenticatedSession = true;
       startMainContent();
     }
   }
@@ -240,6 +244,7 @@ public class PolicyManagementActivity extends DumpableActivity
         .setPositiveButton("Leave", (d, w) -> {
           mSessionChanges.clear();
           mLeavingWithPrompt = false;
+          sAuthenticatedSession = false;
           finish();
         })
         .setOnCancelListener(d -> mLeavingWithPrompt = false)
@@ -330,6 +335,15 @@ public class PolicyManagementActivity extends DumpableActivity
     } else if (itemId == R.id.action_load_policy) {
       Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT); i.setType("application/json");
       i.addCategory(Intent.CATEGORY_OPENABLE); startActivityForResult(i, POLICY_IMPORT_REQUEST); return true;
+    } else if (itemId == R.id.action_transfer_ownership) {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        getFragmentManager().beginTransaction()
+            .replace(R.id.container, new com.afwsamples.testdpc.transferownership.PickTransferComponentFragment())
+            .addToBackStack("transfer_ownership").commit();
+      } else {
+        new AlertDialog.Builder(this).setMessage("Ownership transfer requires Android 9 (API 28) or later.").setPositiveButton("OK", null).show();
+      }
+      return true;
     } else if (itemId == R.id.action_quick_access) {
       startActivity(new android.content.Intent(this, com.afwsamples.testdpc.policy.QuickAccessActivity.class));
       return true;
