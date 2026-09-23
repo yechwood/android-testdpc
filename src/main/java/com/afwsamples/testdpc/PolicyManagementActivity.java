@@ -87,6 +87,7 @@ public class PolicyManagementActivity extends DumpableActivity
 
   private void startMainContent() {
     if (isFinishing()) return;
+    if (getSupportActionBar() != null) getSupportActionBar().show();
     setContentView(R.layout.activity_main);
     final String quickAction = getIntent().getStringExtra(EXTRA_QUICK_ACTION);
     getIntent().removeExtra(EXTRA_QUICK_ACTION);
@@ -106,6 +107,7 @@ public class PolicyManagementActivity extends DumpableActivity
 
   private void showProtectionScreen() {
     mUnlocked = false;
+    if (getSupportActionBar() != null) getSupportActionBar().hide();
     mTapCount = 0;
     LinearLayout root = new LinearLayout(this);
     root.setOrientation(LinearLayout.VERTICAL);
@@ -132,7 +134,7 @@ public class PolicyManagementActivity extends DumpableActivity
     root.addView(title, titleParams);
 
     TextView subtitle = new TextView(this);
-    subtitle.setText("Test DPC is protected. Tap the screen 7 times to continue.");
+    subtitle.setText("Test DPC is protected.");
     subtitle.setTextSize(15);
     subtitle.setTextColor(Color.LTGRAY);
     subtitle.setGravity(Gravity.CENTER);
@@ -154,6 +156,8 @@ public class PolicyManagementActivity extends DumpableActivity
   }
 
   private void showModernPasswordPage() {
+    mUnlocked = false;
+    if (getSupportActionBar() != null) getSupportActionBar().hide();
     LinearLayout root = new LinearLayout(this);
     root.setOrientation(LinearLayout.VERTICAL);
     root.setGravity(Gravity.CENTER);
