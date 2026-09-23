@@ -63,6 +63,8 @@ maven_install(
         "androidx.test:monitor:1.6.0",
         "androidx.test:runner:1.5.0",
         "androidx.window:window:1.2.0",
+        "dev.rikka.shizuku:api:13.1.5",
+        "dev.rikka.shizuku:provider:13.1.5",
         "com.google.android.material:material:1.6.1",
         "com.google.guava:guava:31.1-android",
         "com.google.testparameterinjector:test-parameter-injector:1.15",
