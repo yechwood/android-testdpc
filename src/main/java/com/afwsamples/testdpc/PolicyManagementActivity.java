@@ -88,7 +88,7 @@ public class PolicyManagementActivity extends DumpableActivity
     getFragmentManager().addOnBackStackChangedListener(this);
     boolean skipPassword = getIntent().getBooleanExtra(EXTRA_SKIP_PASSWORD, false) && sAuthenticatedSession;
     mReturnToQuickAccess = getIntent().getBooleanExtra(EXTRA_RETURN_TO_QUICK_ACCESS, false);
-    if (AppSecurity.hasPassword(this) && !skipPassword) {
+    if (hasAnyLoginMethod() && !skipPassword) {
       showProtectionScreen();
     } else {
       mUnlocked = true;
@@ -170,6 +170,8 @@ public class PolicyManagementActivity extends DumpableActivity
 
   private final java.util.concurrent.ExecutorService mPasswordExecutor = java.util.concurrent.Executors.newSingleThreadExecutor();
 
+  private boolean hasAnyLoginMethod() { return AppSecurity.hasPassword(this) || AppSecurity.hasTotp(this); }
+
   private void showModernPasswordPage() {
     mUnlocked = false;
     if (getActionBar() != null) getActionBar().hide();
@@ -189,7 +191,7 @@ public class PolicyManagementActivity extends DumpableActivity
     root.addView(title, new LinearLayout.LayoutParams(-1, -2));
 
     TextView message = new TextView(this);
-    message.setText("Enter your password to access device policies.");
+    message.setText(AppSecurity.hasPassword(this) && AppSecurity.hasTotp(this) ? "Enter your password or current 6-digit one-time code." : (AppSecurity.hasTotp(this) ? "Enter your current 6-digit one-time code." : "Enter your password to access device policies."));
     message.setTextSize(16);
     message.setTextColor(Color.LTGRAY);
     message.setGravity(Gravity.CENTER);
@@ -227,7 +229,7 @@ public class PolicyManagementActivity extends DumpableActivity
       unlock.setEnabled(false);
       unlock.setText("Checking…");
       mPasswordExecutor.execute(() -> {
-        final boolean valid = AppSecurity.verify(this, password);
+        final boolean valid = (password.matches("\\d{6}") && AppSecurity.verifyTotp(this, password)) || AppSecurity.verify(this, password);
         runOnUiThread(() -> {
           if (isFinishing()) return;
           unlock.setEnabled(true);
@@ -301,11 +303,46 @@ public class PolicyManagementActivity extends DumpableActivity
               new AlertDialog.Builder(this).setMessage("Incorrect password.").setPositiveButton("OK", null).show();
             }
           })
+          .setNeutralButton("One-time code", (d, w) -> showTotpSettings())
           .setNegativeButton("Cancel", null)
           .show();
     } else {
-      showSetPasswordDialog();
+      new AlertDialog.Builder(this)
+          .setTitle("App security")
+          .setMessage("Password: not set\nOne-time code: " + (AppSecurity.hasTotp(this) ? "enabled" : "not set"))
+          .setPositiveButton("Set password", (d, w) -> showSetPasswordDialog())
+          .setNeutralButton("One-time code", (d, w) -> showTotpSettings())
+          .setNegativeButton("Close", null)
+          .show();
     }
+  }
+
+  private void showTotpSettings() {
+    if (!AppSecurity.hasTotp(this)) {
+      String secret = AppSecurity.enableTotp(this);
+      showTotpSecret(secret);
+      return;
+    }
+    new AlertDialog.Builder(this)
+        .setTitle("One-time code enabled")
+        .setMessage("Authenticator secret:\n\n" + AppSecurity.getTotpSecret(this)
+            + "\n\nAdd this secret as a TOTP account in a compatible authenticator. Codes change every 30 seconds.")
+        .setPositiveButton("Regenerate", (d, w) -> {
+          String secret = AppSecurity.enableTotp(this);
+          showTotpSecret(secret);
+        })
+        .setNeutralButton("Disable", (d, w) -> AppSecurity.disableTotp(this))
+        .setNegativeButton("Close", null)
+        .show();
+  }
+
+  private void showTotpSecret(String secret) {
+    new AlertDialog.Builder(this)
+        .setTitle("One-time code enabled")
+        .setMessage("Authenticator secret:\n\n" + secret
+            + "\n\nUse the current 6-digit code from your authenticator to unlock Test DPC.")
+        .setPositiveButton("Done", null)
+        .show();
   }
 
   private void showSetPasswordDialog() {
@@ -419,7 +456,7 @@ public class PolicyManagementActivity extends DumpableActivity
   @Override
   protected void onResume() {
     super.onResume();
-    if (!mUnlocked && AppSecurity.hasPassword(this)) {
+    if (!mUnlocked && hasAnyLoginMethod()) {
       showProtectionScreen();
     }
 
