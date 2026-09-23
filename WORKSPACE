@@ -79,6 +79,7 @@ maven_install(
         "org.robolectric:shadows-core:3.3.2",
         "org.bouncycastle:bcpkix-jdk15on:1.70",
         "org.bouncycastle:bcprov-jdk15on:1.70",
+        "com.google.zxing:core:3.5.3",
     ],
     repositories = [
         "https://maven.google.com",
