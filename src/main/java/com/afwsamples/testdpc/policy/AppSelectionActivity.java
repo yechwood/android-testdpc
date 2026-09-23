@@ -224,47 +224,75 @@ public class AppSelectionActivity extends Activity {
 
   private final class AppAdapter extends BaseAdapter {
     private final List<AppItem> items;
-    AppAdapter(List<AppItem> items) { this.items = items; }
-    public int getCount() { return items.size(); }
-    public Object getItem(int position) { return items.get(position); }
+    private final boolean hasLauncher;
+    private final boolean hasOther;
+    AppAdapter(List<AppItem> items) {
+      this.items = items;
+      hasLauncher = hasType(true);
+      hasOther = hasType(false);
+    }
+    private boolean hasType(boolean launcher) {
+      for (AppItem item : items) if (item.launcher == launcher) return true;
+      return false;
+    }
+    public int getCount() {
+      return items.size() + (hasLauncher ? 1 : 0) + (hasOther ? 1 : 0);
+    }
+    public Object getItem(int position) { return null; }
     public long getItemId(int position) { return position; }
-
+    public int getViewTypeCount() { return 3; }
+    public int getItemViewType(int position) {
+      if (hasLauncher && position == 0) return 1;
+      int offset = hasLauncher ? 1 : 0;
+      int launcherCount = hasLauncher ? countType(true) : 0;
+      if (hasOther && position == offset + launcherCount) return 2;
+      return 0;
+    }
+    private int countType(boolean launcher) {
+      int n = 0; for (AppItem item : items) if (item.launcher == launcher) n++; return n;
+    }
+    private AppItem appAt(int position) {
+      int index = position - (hasLauncher ? 1 : 0);
+      if (hasOther && position > (hasLauncher ? countType(true) : -1)) index--;
+      return items.get(index);
+    }
     public View getView(int position, View convertView, ViewGroup parent) {
+      int type = getItemViewType(position);
+      if (type != 0) {
+        TextView header = new TextView(AppSelectionActivity.this);
+        header.setText(type == 1 ? "APPS WITH LAUNCHERS" : "SYSTEM / NON-LAUNCHER APPS");
+        header.setTextSize(14);
+        header.setTextColor(Color.DKGRAY);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(20, 8, 20, 8);
+        header.setBackgroundColor(0xffeeeeee);
+        return header;
+      }
+      AppItem item = appAt(position);
       LinearLayout row = new LinearLayout(AppSelectionActivity.this);
       row.setOrientation(LinearLayout.HORIZONTAL);
       row.setGravity(Gravity.CENTER_VERTICAL);
       row.setPadding(18, 12, 12, 12);
-
       ImageView icon = new ImageView(AppSelectionActivity.this);
-      icon.setImageDrawable(items.get(position).icon);
+      icon.setImageDrawable(item.icon);
       row.addView(icon, new LinearLayout.LayoutParams(64, 64));
-
       LinearLayout textBox = new LinearLayout(AppSelectionActivity.this);
       textBox.setOrientation(LinearLayout.VERTICAL);
       textBox.setPadding(18, 0, 8, 0);
       row.addView(textBox, new LinearLayout.LayoutParams(0, -2, 1f));
-
       TextView name = new TextView(AppSelectionActivity.this);
-      name.setText(items.get(position).label);
-      name.setTextSize(18);
-      name.setTextColor(Color.DKGRAY);
+      name.setText(item.label); name.setTextSize(18); name.setTextColor(Color.DKGRAY);
       textBox.addView(name);
-
       TextView pkg = new TextView(AppSelectionActivity.this);
-      pkg.setText(items.get(position).packageName);
-      pkg.setTextSize(13);
-      pkg.setTextColor(Color.GRAY);
+      pkg.setText(item.packageName); pkg.setTextSize(13); pkg.setTextColor(Color.GRAY);
       textBox.addView(pkg);
-
       CheckBox box = new CheckBox(AppSelectionActivity.this);
-      box.setChecked(selected.contains(items.get(position).packageName));
+      box.setChecked(selected.contains(item.packageName));
       row.addView(box, new LinearLayout.LayoutParams(-2, -2));
-
       View.OnClickListener toggle = v -> {
-        String pkgName = items.get(position).packageName;
-        if (selected.contains(pkgName)) selected.remove(pkgName);
-        else selected.add(pkgName);
-        box.setChecked(selected.contains(pkgName));
+        if (selected.contains(item.packageName)) selected.remove(item.packageName);
+        else selected.add(item.packageName);
+        box.setChecked(selected.contains(item.packageName));
         if (actionButton != null) actionButton.setEnabled(!selected.isEmpty());
         if (selectedText != null) selectedText.setText(selected.size() + " selected");
         if (selectAllButton != null) selectAllButton.setText("Select all");
