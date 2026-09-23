@@ -56,6 +56,7 @@ maven_install(
         "androidx.lifecycle:lifecycle-common:2.5.1",
         "androidx.lifecycle:lifecycle-process:2.5.1",
         "androidx.lifecycle:lifecycle-runtime:2.5.1",
+        "androidx.lifecycle:lifecycle-livedata-core:2.5.1",
         "androidx.localbroadcastmanager:localbroadcastmanager:1.1.0",
         "androidx.preference:preference:1.1.0",
         "androidx.recyclerview:recyclerview:1.2.0",
