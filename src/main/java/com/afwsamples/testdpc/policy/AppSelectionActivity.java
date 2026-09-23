@@ -52,6 +52,7 @@ public class AppSelectionActivity extends Activity {
   private EditText search;
   private TextView status;
   private TextView selectedText;
+  private android.widget.Button selectAllButton;
   private android.widget.Button actionButton;
   private int mode;
 
@@ -119,6 +120,11 @@ public class AppSelectionActivity extends Activity {
     selectedText.setTextSize(15);
     bottom.addView(selectedText, new LinearLayout.LayoutParams(0, 56, 1f));
 
+    selectAllButton = new android.widget.Button(this);
+    selectAllButton.setText("Select all");
+    selectAllButton.setAllCaps(false);
+    bottom.addView(selectAllButton, new LinearLayout.LayoutParams(120, 56));
+
     actionButton = new android.widget.Button(this);
     actionButton.setText(getActionText());
     actionButton.setAllCaps(false);
@@ -131,6 +137,8 @@ public class AppSelectionActivity extends Activity {
       public void onTextChanged(CharSequence s, int st, int before, int count) { refreshList(selectedText); }
       public void afterTextChanged(android.text.Editable e) {}
     });
+    selectAllButton.setOnClickListener(v -> toggleSelectAll());
+
     actionButton.setOnClickListener(v -> {
       if (selected.isEmpty()) return;
       Intent result = new Intent();
@@ -201,9 +209,17 @@ public class AppSelectionActivity extends Activity {
         filtered.add(item);
       }
     }
+    int firstVisible = listView.getFirstVisiblePosition();
+    View firstChild = listView.getChildAt(0);
+    int firstTop = firstChild == null ? 0 : firstChild.getTop();
     listView.setAdapter(new AppAdapter(filtered));
+    if (firstVisible > 0 || firstTop != 0) listView.setSelectionFromTop(firstVisible, firstTop);
     if (selectedText != null) selectedText.setText(selected.size() + " selected");
     actionButton.setEnabled(!selected.isEmpty());
+    if (selectAllButton != null) {
+      boolean all = !filtered.isEmpty() && selected.containsAll(packageNames(filtered));
+      selectAllButton.setText(all ? "Unselect all" : "Select all");
+    }
   }
 
   private final class AppAdapter extends BaseAdapter {
@@ -250,12 +266,35 @@ public class AppSelectionActivity extends Activity {
         else selected.add(pkgName);
         box.setChecked(selected.contains(pkgName));
         if (actionButton != null) actionButton.setEnabled(!selected.isEmpty());
-        refreshList(selectedText);
+        if (selectedText != null) selectedText.setText(selected.size() + " selected");
+        if (selectAllButton != null) selectAllButton.setText("Select all");
       };
       row.setOnClickListener(toggle);
       box.setOnClickListener(toggle);
       return row;
     }
+  }
+
+  private Set<String> packageNames(List<AppItem> items) {
+    Set<String> names = new HashSet<>();
+    for (AppItem item : items) names.add(item.packageName);
+    return names;
+  }
+
+  private void toggleSelectAll() {
+    String query = search == null ? "" : search.getText().toString().trim().toLowerCase(Locale.getDefault());
+    ArrayList<AppItem> filtered = new ArrayList<>();
+    for (AppItem item : allApps) {
+      if (query.isEmpty() || item.label.toLowerCase(Locale.getDefault()).contains(query)
+          || item.packageName.toLowerCase(Locale.getDefault()).contains(query)) filtered.add(item);
+    }
+    Set<String> visible = packageNames(filtered);
+    if (!visible.isEmpty() && selected.containsAll(visible)) selected.removeAll(visible);
+    else selected.addAll(visible);
+    if (selectedText != null) selectedText.setText(selected.size() + " selected");
+    if (actionButton != null) actionButton.setEnabled(!selected.isEmpty());
+    if (selectAllButton != null) selectAllButton.setText(selected.containsAll(visible) ? "Unselect all" : "Select all");
+    if (listView != null && listView.getAdapter() != null) listView.getAdapter().notifyDataSetChanged();
   }
 
   private boolean isPackageSuspended(String packageName) {
