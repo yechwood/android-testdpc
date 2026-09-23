@@ -92,7 +92,19 @@ public class PickTransferComponentFragment extends Fragment {
           ComponentName target =
               ComponentName.unflattenFromString(componentName.getText().toString());
           if (target != null) {
-            result.setText(performTransfer(target));
+            try {
+              mDevicePolicyManager.transferOwnership(
+                  com.afwsamples.testdpc.DeviceAdminReceiver.getComponentName(getActivity()),
+                  target,
+                  createTransferBundle());
+              result.setText("Success! Ownership transfer completed.");
+              transferButton.setEnabled(false);
+              // The current DPC immediately loses ownership. Close this activity before any
+              // later lifecycle callback tries to use owner-only APIs.
+              if (getActivity() != null) getActivity().finish();
+            } catch (Throwable e) {
+              result.setText(getStackTrace(e));
+            }
           } else {
             result.setText(R.string.transfer_ownership_invalid_target_format);
           }
@@ -101,23 +113,10 @@ public class PickTransferComponentFragment extends Fragment {
     return rootView;
   }
 
-  private String performTransfer(ComponentName target) {
-    ComponentName source =
-        com.afwsamples.testdpc.DeviceAdminReceiver.getComponentName(getActivity());
-    Log.i(getClass().getName(), "Transferring ownership from " + source + " to target " + target);
-    try {
-      PersistableBundle persistableBundle = new PersistableBundle();
-      persistableBundle.putString("random_key", "random_value");
-      // TODO: use DevicePolicyManagerGateway instead
-      mDevicePolicyManager.transferOwnership(source, target, persistableBundle);
-      return "Success!";
-    } catch (Exception e) {
-      Throwable cause = e.getCause();
-      if (cause instanceof InvocationTargetException) {
-        return getStackTrace(((InvocationTargetException) cause).getTargetException());
-      }
-      return getStackTrace(cause);
-    }
+  private PersistableBundle createTransferBundle() {
+    PersistableBundle bundle = new PersistableBundle();
+    bundle.putString("random_key", "random_value");
+    return bundle;
   }
 
   private String getStackTrace(Throwable throwable) {
