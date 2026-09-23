@@ -24,12 +24,18 @@ import android.app.AlertDialog;
 import android.text.InputType;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.TextView;
+import android.widget.Button;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.Gravity;
+import android.view.View;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -56,44 +62,174 @@ public class PolicyManagementActivity extends DumpableActivity
   private static final String LOCK_MODE_ACTION_STOP = "stop";
 
   private boolean mLockTaskMode;
-  private boolean mUnlockDialogShowing;
+  private boolean mUnlocked;
+  private boolean mLeavingWithPrompt;
+  private int mTapCount;
+  private long mLastTapTime;
+  private final java.util.ArrayList<String> mSessionChanges = new java.util.ArrayList<>();
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
+    getFragmentManager().addOnBackStackChangedListener(this);
+    if (AppSecurity.hasPassword(this)) {
+      showProtectionScreen();
+    } else {
+      mUnlocked = true;
+      startMainContent();
+    }
+  }
+
+  private void startMainContent() {
+    if (isFinishing()) return;
     setContentView(R.layout.activity_main);
-    if (savedInstanceState == null) {
+    if (getFragmentManager().findFragmentByTag(PolicyManagementFragment.FRAGMENT_TAG) == null) {
       getFragmentManager()
           .beginTransaction()
-          .add(
+          .replace(
               R.id.container, new PolicyManagementFragment(), PolicyManagementFragment.FRAGMENT_TAG)
           .commit();
     }
-    getFragmentManager().addOnBackStackChangedListener(this);
+    mSessionChanges.clear();
   }
 
+  private void showProtectionScreen() {
+    mUnlocked = false;
+    mTapCount = 0;
+    LinearLayout root = new LinearLayout(this);
+    root.setOrientation(LinearLayout.VERTICAL);
+    root.setGravity(Gravity.CENTER);
+    int pad = (int) (32 * getResources().getDisplayMetrics().density);
+    root.setPadding(pad, pad, pad, pad);
+    root.setBackgroundColor(Color.rgb(12, 18, 28));
 
-  private void showUnlockDialog() {
-    mUnlockDialogShowing = true;
+    TextView icon = new TextView(this);
+    icon.setText("◈");
+    icon.setTextSize(56);
+    icon.setTextColor(Color.WHITE);
+    icon.setGravity(Gravity.CENTER);
+    root.addView(icon, new LinearLayout.LayoutParams(-1, -2));
+
+    TextView title = new TextView(this);
+    title.setText("This app is protecting your device");
+    title.setTextSize(26);
+    title.setTextColor(Color.WHITE);
+    title.setGravity(Gravity.CENTER);
+    title.setTypeface(null, android.graphics.Typeface.BOLD);
+    LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(-1, -2);
+    titleParams.topMargin = (int) (18 * getResources().getDisplayMetrics().density);
+    root.addView(title, titleParams);
+
+    TextView subtitle = new TextView(this);
+    subtitle.setText("Test DPC is protected. Tap the screen 7 times to continue.");
+    subtitle.setTextSize(15);
+    subtitle.setTextColor(Color.LTGRAY);
+    subtitle.setGravity(Gravity.CENTER);
+    LinearLayout.LayoutParams subParams = new LinearLayout.LayoutParams(-1, -2);
+    subParams.topMargin = (int) (10 * getResources().getDisplayMetrics().density);
+    root.addView(subtitle, subParams);
+
+    View touch = root;
+    touch.setOnClickListener(v -> {
+      long now = System.currentTimeMillis();
+      if (now - mLastTapTime > 2000) mTapCount = 0;
+      mLastTapTime = now;
+      mTapCount++;
+      if (mTapCount >= 7) {
+        showModernPasswordPage();
+      }
+    });
+    setContentView(root);
+  }
+
+  private void showModernPasswordPage() {
+    LinearLayout root = new LinearLayout(this);
+    root.setOrientation(LinearLayout.VERTICAL);
+    root.setGravity(Gravity.CENTER);
+    int pad = (int) (28 * getResources().getDisplayMetrics().density);
+    root.setPadding(pad, pad, pad, pad);
+    root.setBackgroundColor(Color.rgb(12, 18, 28));
+
+    TextView title = new TextView(this);
+    title.setText("Unlock Test DPC");
+    title.setTextSize(30);
+    title.setTextColor(Color.WHITE);
+    title.setTypeface(null, android.graphics.Typeface.BOLD);
+    title.setGravity(Gravity.CENTER);
+    root.addView(title, new LinearLayout.LayoutParams(-1, -2));
+
+    TextView message = new TextView(this);
+    message.setText("Enter your password to access device policies.");
+    message.setTextSize(16);
+    message.setTextColor(Color.LTGRAY);
+    message.setGravity(Gravity.CENTER);
+    LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-1, -2);
+    mp.topMargin = (int) (10 * getResources().getDisplayMetrics().density);
+    root.addView(message, mp);
+
     final EditText input = new EditText(this);
     input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
     input.setSingleLine(true);
     input.setHint("Password");
-    AlertDialog dialog = new AlertDialog.Builder(this)
-        .setTitle("DPC password required")
-        .setMessage("Enter the password to access Test DPC.")
-        .setView(input)
-        .setCancelable(false)
-        .setPositiveButton("Unlock", null)
-        .show();
-    dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+    input.setTextColor(Color.WHITE);
+    input.setHintTextColor(Color.GRAY);
+    input.setPadding(24, 0, 24, 0);
+    GradientDrawable fieldBg = new GradientDrawable();
+    fieldBg.setColor(Color.rgb(30, 39, 52));
+    fieldBg.setCornerRadius(28);
+    input.setBackground(fieldBg);
+    LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(-1, (int) (58 * getResources().getDisplayMetrics().density));
+    ip.topMargin = (int) (28 * getResources().getDisplayMetrics().density);
+    root.addView(input, ip);
+
+    Button unlock = new Button(this);
+    unlock.setText("Unlock");
+    unlock.setTextSize(16);
+    unlock.setAllCaps(false);
+    LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, (int) (54 * getResources().getDisplayMetrics().density));
+    bp.topMargin = (int) (16 * getResources().getDisplayMetrics().density);
+    root.addView(unlock, bp);
+
+    unlock.setOnClickListener(v -> {
       if (AppSecurity.verify(this, input.getText().toString())) {
-        mUnlockDialogShowing = false;
-        dialog.dismiss();
+        mUnlocked = true;
+        startMainContent();
       } else {
         input.setError("Incorrect password");
+        input.selectAll();
       }
     });
+    setContentView(root);
+    input.requestFocus();
+  }
+
+  public void recordPolicyChange(String description) {
+    if (mUnlocked && description != null && !description.trim().isEmpty()) {
+      mSessionChanges.add(description);
+      AppSecurity.markPolicyEdited(this);
+    }
+  }
+
+  private boolean confirmLeaving() {
+    if (!mUnlocked || mSessionChanges.isEmpty() || mLeavingWithPrompt) return false;
+    mLeavingWithPrompt = true;
+    StringBuilder message = new StringBuilder("The following changes were made during this session:\n\n");
+    for (String change : mSessionChanges) {
+      message.append("• ").append(change).append("\n");
+    }
+    message.append("\nSome changes may make the device less restricted. Review them before leaving.");
+    new AlertDialog.Builder(this)
+        .setTitle("Review policy changes")
+        .setMessage(message.toString())
+        .setNegativeButton("Stay", (d, w) -> mLeavingWithPrompt = false)
+        .setPositiveButton("Leave", (d, w) -> {
+          mSessionChanges.clear();
+          mLeavingWithPrompt = false;
+          finish();
+        })
+        .setOnCancelListener(d -> mLeavingWithPrompt = false)
+        .show();
+    return true;
   }
 
   private void showPasswordSettings() {
@@ -184,8 +320,8 @@ public class PolicyManagementActivity extends DumpableActivity
   @Override
   protected void onResume() {
     super.onResume();
-    if (AppSecurity.hasPassword(this) && !mUnlockDialogShowing) {
-      showUnlockDialog();
+    if (!mUnlocked && AppSecurity.hasPassword(this)) {
+      showProtectionScreen();
     }
 
     String lockModeCommand = getIntent().getStringExtra(CMD_LOCK_TASK_MODE);
@@ -204,6 +340,7 @@ public class PolicyManagementActivity extends DumpableActivity
 
   @Override
   public void onBackPressed() {
+    if (confirmLeaving()) return;
     Fragment currFragment = getFragmentManager().findFragmentById(R.id.container);
     boolean onBackPressHandled = false;
     if (currFragment != null && currFragment instanceof OnBackPressedHandler) {
