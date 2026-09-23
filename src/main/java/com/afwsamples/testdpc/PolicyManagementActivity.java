@@ -41,6 +41,7 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import com.afwsamples.testdpc.common.DumpableActivity;
 import com.afwsamples.testdpc.common.AppSecurity;
+import com.afwsamples.testdpc.common.PolicyBundleManager;
 import com.afwsamples.testdpc.common.OnBackPressedHandler;
 import com.afwsamples.testdpc.policy.PolicyManagementFragment;
 import com.afwsamples.testdpc.search.PolicySearchFragment;
@@ -61,6 +62,8 @@ public class PolicyManagementActivity extends DumpableActivity
   private static final String LOCK_MODE_ACTION_STATUS = "status";
   private static final String LOCK_MODE_ACTION_STOP = "stop";
   public static final String EXTRA_QUICK_ACTION = "quick_action";
+  private static final int POLICY_EXPORT_REQUEST = 9901;
+  private static final int POLICY_IMPORT_REQUEST = 9902;
 
   private boolean mLockTaskMode;
   private boolean mUnlocked;
@@ -315,6 +318,13 @@ public class PolicyManagementActivity extends DumpableActivity
           .replace(R.id.container, PolicySearchFragment.newInstance())
           .addToBackStack("search")
           .commit();
+    } else if (itemId == R.id.action_save_policy) {
+      Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+      i.setType("application/json"); i.putExtra(Intent.EXTRA_TITLE, "TestDPC-policy.json");
+      startActivityForResult(i, POLICY_EXPORT_REQUEST); return true;
+    } else if (itemId == R.id.action_load_policy) {
+      Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT); i.setType("application/json");
+      i.addCategory(Intent.CATEGORY_OPENABLE); startActivityForResult(i, POLICY_IMPORT_REQUEST); return true;
     } else if (itemId == R.id.action_quick_access) {
       startActivity(new android.content.Intent(this, com.afwsamples.testdpc.policy.QuickAccessActivity.class));
       return true;
@@ -325,6 +335,34 @@ public class PolicyManagementActivity extends DumpableActivity
       getFragmentManager().popBackStack();
     }
     return false;
+  }
+
+  @Override
+  protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+    super.onActivityResult(requestCode, resultCode, data);
+    if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
+    try {
+      if (requestCode == POLICY_EXPORT_REQUEST) {
+        try (java.io.OutputStream out = getContentResolver().openOutputStream(data.getData())) {
+          PolicyBundleManager.write(this, out);
+        }
+        recordPolicyChange("Saved portable policy profile");
+        new AlertDialog.Builder(this).setTitle("Policy saved")
+            .setMessage("The policy profile was saved. You can move this file to another device and use Load policy.")
+            .setPositiveButton("OK", null).show();
+      } else if (requestCode == POLICY_IMPORT_REQUEST) {
+        try (java.io.InputStream in = getContentResolver().openInputStream(data.getData())) {
+          PolicyBundleManager.importInto(this, in);
+        }
+        recordPolicyChange("Loaded portable policy profile");
+        recreate();
+      }
+    } catch (Exception e) {
+      Log.e(TAG, "Policy profile operation failed", e);
+      new AlertDialog.Builder(this).setTitle("Policy profile error")
+          .setMessage(e.getMessage() == null ? "Could not process the policy profile." : e.getMessage())
+          .setPositiveButton("OK", null).show();
+    }
   }
 
   @Override
