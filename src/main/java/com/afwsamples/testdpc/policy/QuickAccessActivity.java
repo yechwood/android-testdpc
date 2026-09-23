@@ -56,6 +56,7 @@ public class QuickAccessActivity extends Activity {
     b.setOnClickListener(v -> {
       Intent i = new Intent(this, PolicyManagementActivity.class);
       i.putExtra(PolicyManagementActivity.EXTRA_QUICK_ACTION, key);
+      i.putExtra(PolicyManagementActivity.EXTRA_SKIP_PASSWORD, true);
       startActivity(i);
     });
     LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, 58);
