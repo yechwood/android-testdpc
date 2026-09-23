@@ -101,6 +101,7 @@ android_library(
         "@setupdesign//:setupdesign",
         "@maven//:dev_rikka_shizuku_api",
         "@maven//:dev_rikka_shizuku_provider",
+        "@maven//:com_google_zxing_core",
         "@setupcompat//:setupcompat",
     ],
 )
