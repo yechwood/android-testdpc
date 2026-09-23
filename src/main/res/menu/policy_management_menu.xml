@@ -16,6 +16,10 @@
             android:title="Load policy"
             android:showAsAction="never"/>
     <item
+            android:id="@+id/action_transfer_ownership"
+            android:title="Transfer ownership"
+            android:showAsAction="never"/>
+    <item
             android:id="@+id/action_quick_access"
             android:title="Quick access"
             android:showAsAction="ifRoom"/>
