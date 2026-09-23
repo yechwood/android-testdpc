@@ -51,6 +51,7 @@ public class AppSelectionActivity extends Activity {
   private ListView listView;
   private EditText search;
   private TextView status;
+  private TextView selectedText;
   private android.widget.Button actionButton;
   private int mode;
 
@@ -113,7 +114,7 @@ public class AppSelectionActivity extends Activity {
     LinearLayout bottom = new LinearLayout(this);
     bottom.setGravity(Gravity.CENTER_VERTICAL);
     bottom.setPadding(16, 8, 16, 8);
-    TextView selectedText = new TextView(this);
+    selectedText = new TextView(this);
     selectedText.setText("0 selected");
     selectedText.setTextSize(15);
     bottom.addView(selectedText, new LinearLayout.LayoutParams(0, 56, 1f));
@@ -248,9 +249,7 @@ public class AppSelectionActivity extends Activity {
         else selected.add(pkgName);
         box.setChecked(selected.contains(pkgName));
         if (actionButton != null) actionButton.setEnabled(!selected.isEmpty());
-        View root = listView.getRootView();
-        TextView count = root.findViewById(android.R.id.content);
-        refreshList(null);
+        refreshList(selectedText);
       };
       row.setOnClickListener(toggle);
       box.setOnClickListener(toggle);
