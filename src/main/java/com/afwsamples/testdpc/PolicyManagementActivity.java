@@ -87,7 +87,7 @@ public class PolicyManagementActivity extends DumpableActivity
 
   private void startMainContent() {
     if (isFinishing()) return;
-    if (getSupportActionBar() != null) getSupportActionBar().show();
+    if (getActionBar() != null) getActionBar().show();
     setContentView(R.layout.activity_main);
     final String quickAction = getIntent().getStringExtra(EXTRA_QUICK_ACTION);
     getIntent().removeExtra(EXTRA_QUICK_ACTION);
@@ -107,7 +107,7 @@ public class PolicyManagementActivity extends DumpableActivity
 
   private void showProtectionScreen() {
     mUnlocked = false;
-    if (getSupportActionBar() != null) getSupportActionBar().hide();
+    if (getActionBar() != null) getActionBar().hide();
     mTapCount = 0;
     LinearLayout root = new LinearLayout(this);
     root.setOrientation(LinearLayout.VERTICAL);
@@ -157,7 +157,7 @@ public class PolicyManagementActivity extends DumpableActivity
 
   private void showModernPasswordPage() {
     mUnlocked = false;
-    if (getSupportActionBar() != null) getSupportActionBar().hide();
+    if (getActionBar() != null) getActionBar().hide();
     LinearLayout root = new LinearLayout(this);
     root.setOrientation(LinearLayout.VERTICAL);
     root.setGravity(Gravity.CENTER);
