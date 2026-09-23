@@ -281,6 +281,7 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
   private static final int INSTALL_APK_PACKAGE_REQUEST_CODE = 7693;
   private static final int REQUEST_MANAGE_CREDENTIALS_REQUEST_CODE = 7694;
   private static final int APP_SELECTION_REQUEST_CODE = 8801;
+  private static final String EXTRA_QUICK_ACCESS_RETURN = "quick_access_return";
 
   public static final String X509_CERT_TYPE = "X.509";
   public static final String TAG = "PolicyManagement";
@@ -3461,6 +3462,7 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
           }
         }
         showToast((unhide ? "Unhidden " : "Hidden ") + changed + " app(s).");
+        finishQuickAccessReturnIfNeeded();
         return;
       }
       boolean unsuspend = mode == AppSelectionActivity.MODE_UNSUSPEND;
@@ -3478,6 +3480,7 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
               }
             }
             showToast((unsuspend ? "Unsuspended " : "Suspended ") + successCount + " app(s).");
+            finishQuickAccessReturnIfNeeded();
           },
           e -> onErrorShowToast("setPackagesSuspended", e,
               unsuspend ? R.string.unsuspend_apps_failure : R.string.suspend_apps_failure,
@@ -3509,6 +3512,14 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
     }
   }
 
+  private void finishQuickAccessReturnIfNeeded() {
+    Activity a = getActivity();
+    if (a instanceof com.afwsamples.testdpc.PolicyManagementActivity
+        && a.getIntent().getBooleanExtra(
+            com.afwsamples.testdpc.PolicyManagementActivity.EXTRA_RETURN_TO_QUICK_ACCESS, false)) {
+      ((com.afwsamples.testdpc.PolicyManagementActivity) a).finishForQuickAccessReturn();
+    }
+  }
   /** Shows a list of installed CA certificates. */
   private void showCaCertificateList() {
     if (getActivity() == null || getActivity().isFinishing()) {
@@ -3763,6 +3774,11 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
     Intent intent = new Intent(getActivity(), AppSelectionActivity.class);
     intent.putExtra(AppSelectionActivity.EXTRA_MODE,
         showHiddenApps ? AppSelectionActivity.MODE_UNHIDE : AppSelectionActivity.MODE_HIDE);
+    if (getActivity() instanceof com.afwsamples.testdpc.PolicyManagementActivity
+        && getActivity().getIntent().getBooleanExtra(
+            com.afwsamples.testdpc.PolicyManagementActivity.EXTRA_RETURN_TO_QUICK_ACCESS, false)) {
+      intent.putExtra(EXTRA_QUICK_ACCESS_RETURN, true);
+    }
     startActivityForResult(intent, APP_SELECTION_REQUEST_CODE);
   }
 
