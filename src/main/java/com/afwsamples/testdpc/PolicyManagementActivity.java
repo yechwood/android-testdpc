@@ -254,6 +254,13 @@ public class PolicyManagementActivity extends DumpableActivity
     }
   }
 
+  public void finishForQuickAccessReturn() {
+    sAuthenticatedSession = true;
+    mSessionChanges.clear();
+    mLeavingWithPrompt = false;
+    finish();
+  }
+
   private boolean confirmLeaving() {
     if (!mUnlocked || mSessionChanges.isEmpty() || mLeavingWithPrompt) return false;
     mLeavingWithPrompt = true;
