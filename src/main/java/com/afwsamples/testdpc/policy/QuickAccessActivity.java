@@ -57,6 +57,7 @@ public class QuickAccessActivity extends Activity {
     b.setOnClickListener(v -> {
       Intent i = new Intent(this, PolicyManagementActivity.class);
       i.putExtra(PolicyManagementActivity.EXTRA_QUICK_ACTION, key);
+      i.putExtra(PolicyManagementActivity.EXTRA_RETURN_TO_QUICK_ACCESS, true);
       i.putExtra(PolicyManagementActivity.EXTRA_SKIP_PASSWORD, true);
       startActivity(i);
     });
