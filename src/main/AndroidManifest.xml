@@ -80,6 +80,7 @@
 
       <activity android:name=".policy.QuickAccessActivity" android:exported="false" android:label="Quick access" />
       <activity android:name=".policy.AppSelectionActivity" android:exported="false" android:label="@string/app_name" />
+      <activity android:name=".transferownership.TransferSuccessActivity" android:exported="false" android:label="Ownership transferred" />
 
       <activity
             android:name=".PolicyManagementActivity"
