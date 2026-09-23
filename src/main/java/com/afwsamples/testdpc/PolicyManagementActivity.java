@@ -65,6 +65,11 @@ public class PolicyManagementActivity extends DumpableActivity
   public static final String EXTRA_QUICK_ACTION = "quick_action";
   public static final String EXTRA_SKIP_PASSWORD = "skip_password";
   private static boolean sAuthenticatedSession;
+
+  /** Called only by the in-app Quick Access screen after the protected main UI is open. */
+  public static void markAuthenticatedSession() {
+    sAuthenticatedSession = true;
+  }
   private static final int POLICY_EXPORT_REQUEST = 9901;
   private static final int POLICY_IMPORT_REQUEST = 9902;
 
@@ -159,6 +164,8 @@ public class PolicyManagementActivity extends DumpableActivity
     setContentView(root);
   }
 
+  private final java.util.concurrent.ExecutorService mPasswordExecutor = java.util.concurrent.Executors.newSingleThreadExecutor();
+
   private void showModernPasswordPage() {
     mUnlocked = false;
     if (getActionBar() != null) getActionBar().hide();
@@ -189,9 +196,11 @@ public class PolicyManagementActivity extends DumpableActivity
     final EditText input = new EditText(this);
     input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
     input.setSingleLine(true);
-    input.setHint("Password");
+    input.setHint("Enter password");
     input.setTextColor(Color.WHITE);
     input.setHintTextColor(Color.GRAY);
+    input.setTextSize(17);
+    input.setTypeface(android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL));
     input.setPadding(24, 0, 24, 0);
     GradientDrawable fieldBg = new GradientDrawable();
     fieldBg.setColor(Color.rgb(30, 39, 52));
@@ -210,13 +219,25 @@ public class PolicyManagementActivity extends DumpableActivity
     root.addView(unlock, bp);
 
     unlock.setOnClickListener(v -> {
-      if (AppSecurity.verify(this, input.getText().toString())) {
-        mUnlocked = true;
-        startMainContent();
-      } else {
-        input.setError("Incorrect password");
-        input.selectAll();
-      }
+      final String password = input.getText().toString();
+      unlock.setEnabled(false);
+      unlock.setText("Checking…");
+      mPasswordExecutor.execute(() -> {
+        final boolean valid = AppSecurity.verify(this, password);
+        runOnUiThread(() -> {
+          if (isFinishing()) return;
+          unlock.setEnabled(true);
+          unlock.setText("Unlock");
+          if (valid) {
+            mUnlocked = true;
+            sAuthenticatedSession = true;
+            startMainContent();
+          } else {
+            input.setError("Incorrect password");
+            input.selectAll();
+          }
+        });
+      });
     });
     setContentView(root);
     input.requestFocus();
@@ -420,6 +441,7 @@ public class PolicyManagementActivity extends DumpableActivity
 
   @Override
   public void onDestroy() {
+    mPasswordExecutor.shutdownNow();
     super.onDestroy();
     getFragmentManager().removeOnBackStackChangedListener(this);
   }
