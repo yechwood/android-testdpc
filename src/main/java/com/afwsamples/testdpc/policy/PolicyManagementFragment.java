@@ -27,10 +27,10 @@ import android.accounts.OperationCanceledException;
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Activity;
-import android.app.PendingIntent;
 import android.app.ActivityManager;
 import android.app.ActivityOptions;
 import android.app.AlertDialog;
+import android.app.PendingIntent;
 import android.app.DialogFragment;
 import android.app.Fragment;
 import android.app.FragmentManager;
@@ -45,7 +45,6 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
-import android.content.IntentSender;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
@@ -1633,6 +1632,1806 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
   }
 
   @Override
+  @SuppressLint("NewApi")
+  public boolean onPreferenceChange(Preference preference, Object newValue) {
+    String key = preference.getKey();
+    Activity activity = getActivity();
+    if (activity instanceof com.afwsamples.testdpc.PolicyManagementActivity) {
+      ((com.afwsamples.testdpc.PolicyManagementActivity) activity)
+          .recordPolicyChange(String.valueOf(preference.getTitle()) + ": " + String.valueOf(newValue));
+    }
+
+    switch (key) {
+      case OVERRIDE_KEY_SELECTION_KEY:
+        preference.setSummary((String) newValue);
+        return true;
+      case DISABLE_CAMERA_KEY:
+        setCameraDisabled((Boolean) newValue);
+        // Reload UI to verify the camera is enable / disable correctly.
+        reloadCameraDisableUi();
+        return true;
+      case DISABLE_CAMERA_ON_PARENT_KEY:
+        setCameraDisabledOnParent((Boolean) newValue);
+        reloadCameraDisableOnParentUi();
+        return true;
+      case ENABLE_BACKUP_SERVICE:
+        setBackupServiceEnabled((Boolean) newValue);
+        reloadEnableBackupServiceUi();
+        return true;
+      case COMMON_CRITERIA_MODE_KEY:
+        setCommonCriteriaModeEnabled((Boolean) newValue);
+        reloadCommonCriteriaModeUi();
+        return true;
+      case ENABLE_USB_DATA_SIGNALING_KEY:
+        setUsbDataSignalingEnabled((Boolean) newValue);
+        reloadEnableUsbDataSignalingUi();
+        return true;
+      case ENABLE_SECURITY_LOGGING:
+        setSecurityLoggingEnabled((Boolean) newValue);
+        reloadEnableSecurityLoggingUi();
+        return true;
+      case ENABLE_NETWORK_LOGGING:
+        mDevicePolicyManagerGateway.setNetworkLoggingEnabled((Boolean) newValue);
+        reloadEnableNetworkLoggingUi();
+        return true;
+      case DISABLE_SCREEN_CAPTURE_KEY:
+        setScreenCaptureDisabled((Boolean) newValue);
+        // Reload UI to verify that screen capture was enabled / disabled correctly.
+        reloadScreenCaptureDisableUi();
+        return true;
+      case DISABLE_SCREEN_CAPTURE_ON_PARENT_KEY:
+        setScreenCaptureDisabledOnParent((Boolean) newValue);
+        reloadScreenCaptureDisableOnParentUi();
+        return true;
+      case MUTE_AUDIO_KEY:
+        mDevicePolicyManager.setMasterVolumeMuted(mAdminComponentName, (Boolean) newValue);
+        reloadMuteAudioUi();
+        return true;
+      case SET_GET_PREFERENTIAL_NETWORK_SERVICE_STATUS:
+        mDevicePolicyManagerGateway.setPreferentialNetworkServiceEnabled(
+            (Boolean) newValue,
+            (v) ->
+                onSuccessShowToastWithHardcodedMessage(
+                    "setPreferentialNetworkServiceEnabled(%b)",
+                    mDevicePolicyManagerGateway.isPreferentialNetworkServiceEnabled()),
+            (e) -> onErrorLog("setPreferentialNetworkServiceEnabled", e));
+        return true;
+      case STAY_ON_WHILE_PLUGGED_IN:
+        mDevicePolicyManager.setGlobalSetting(
+            mAdminComponentName,
+            Settings.Global.STAY_ON_WHILE_PLUGGED_IN,
+            newValue.equals(true) ? BATTERY_PLUGGED_ANY : DONT_STAY_ON);
+        updateStayOnWhilePluggedInPreference();
+        return true;
+      case WIFI_CONFIG_LOCKDOWN_ENABLE_KEY:
+        mDevicePolicyManager.setConfiguredNetworksLockdownState(
+            mAdminComponentName, newValue.equals(true));
+        reloadLockdownAdminConfiguredNetworksUi();
+        return true;
+      case INSTALL_NONMARKET_APPS_KEY:
+        mDevicePolicyManager.setSecureSetting(
+            mAdminComponentName,
+            Settings.Secure.INSTALL_NON_MARKET_APPS,
+            newValue.equals(true) ? "1" : "0");
+        updateInstallNonMarketAppsPreference();
+        return true;
+      case SET_AUTO_TIME_REQUIRED_KEY:
+        mDevicePolicyManager.setAutoTimeRequired(mAdminComponentName, newValue.equals(true));
+        reloadSetAutoTimeRequiredUi();
+        return true;
+      case SET_AUTO_TIME_KEY:
+        setAutoTimeEnabled(newValue.equals(true));
+        reloadSetAutoTimeUi();
+        return true;
+      case SET_AUTO_TIME_ZONE_KEY:
+        setAutoTimeZoneEnabled(newValue.equals(true));
+        reloadSetAutoTimeZoneUi();
+        return true;
+      case SET_DEVICE_ORGANIZATION_NAME_KEY:
+        mDevicePolicyManagerGateway.setOrganizationName(
+            (String) newValue,
+            (v) -> onSuccessLog("setOrganizationName"),
+            (e) -> onErrorLog("setOrganizationName", e));
+        mSetDeviceOrganizationNamePreference.setSummary((String) newValue);
+        return true;
+      case ENABLE_LOGOUT_KEY:
+        mDevicePolicyManager.setLogoutEnabled(mAdminComponentName, (Boolean) newValue);
+        reloadEnableLogoutUi();
+        return true;
+      case AUTO_BRIGHTNESS_KEY:
+        (mIsOrganizationOwnedProfileOwner ? mParentDevicePolicyManager : mDevicePolicyManager)
+            .setSystemSetting(
+                mAdminComponentName,
+                Settings.System.SCREEN_BRIGHTNESS_MODE,
+                newValue.equals(true) ? "1" : "0");
+        reloadAutoBrightnessUi();
+        return true;
+      case SET_NEW_PASSWORD_WITH_COMPLEXITY:
+        Intent intent = new Intent(DevicePolicyManager.ACTION_SET_NEW_PASSWORD);
+        intent.putExtra(
+            DevicePolicyManager.EXTRA_PASSWORD_COMPLEXITY, Integer.parseInt((String) newValue));
+        startActivity(intent);
+        return true;
+      case SET_REQUIRED_PASSWORD_COMPLEXITY:
+        int requiredComplexity = Integer.parseInt((String) newValue);
+        setRequiredPasswordComplexity(requiredComplexity);
+        return true;
+      case SET_REQUIRED_PASSWORD_COMPLEXITY_ON_PARENT:
+        int requiredParentComplexity = Integer.parseInt((String) newValue);
+        setRequiredPasswordComplexityOnParent(requiredParentComplexity);
+        return true;
+      case APP_FEEDBACK_NOTIFICATIONS:
+        SharedPreferences.Editor editor =
+            PreferenceManager.getDefaultSharedPreferences(getContext()).edit();
+        editor.putBoolean(getString(R.string.app_feedback_notifications), newValue.equals(true));
+        editor.commit();
+        return true;
+      case SET_LOCATION_ENABLED_KEY:
+        mDevicePolicyManager.setLocationEnabled(mAdminComponentName, newValue.equals(true));
+        reloadLocationEnabledUi();
+        reloadLocationModeUi();
+        return true;
+      case SET_LOCATION_MODE_KEY:
+        final int locationMode;
+        if (newValue.equals(true)) {
+          locationMode = Secure.LOCATION_MODE_HIGH_ACCURACY;
+        } else {
+          locationMode = Secure.LOCATION_MODE_OFF;
+        }
+        mDevicePolicyManager.setSecureSetting(
+            mAdminComponentName,
+            Secure.LOCATION_MODE,
+            String.format(Locale.getDefault(), "%d", locationMode));
+        reloadLocationEnabledUi();
+        reloadLocationModeUi();
+        return true;
+      case SUSPEND_PERSONAL_APPS_KEY:
+        mDevicePolicyManager.setPersonalAppsSuspended(mAdminComponentName, (Boolean) newValue);
+        reloadPersonalAppsSuspendedUi();
+        return true;
+      case PROFILE_MAX_TIME_OFF_KEY:
+        final long timeoutSec = Long.parseLong((String) newValue);
+        mDevicePolicyManager.setManagedProfileMaximumTimeOff(
+            mAdminComponentName, TimeUnit.SECONDS.toMillis(timeoutSec));
+        maybeUpdateProfileMaxTimeOff();
+        return true;
+    }
+    return false;
+  }
+
+  @TargetApi(VERSION_CODES.M)
+  private void setCameraDisabled(boolean disabled) {
+    mDevicePolicyManager.setCameraDisabled(mAdminComponentName, disabled);
+  }
+
+  @TargetApi(VERSION_CODES.R)
+  private void setCameraDisabledOnParent(boolean disabled) {
+    mParentDevicePolicyManager.setCameraDisabled(mAdminComponentName, disabled);
+  }
+
+  @TargetApi(VERSION_CODES.N)
+  private void setSecurityLoggingEnabled(boolean enabled) {
+    mDevicePolicyManager.setSecurityLoggingEnabled(mAdminComponentName, enabled);
+  }
+
+  @TargetApi(VERSION_CODES.O)
+  private void setBackupServiceEnabled(boolean enabled) {
+    mDevicePolicyManager.setBackupServiceEnabled(mAdminComponentName, enabled);
+  }
+
+  @TargetApi(VERSION_CODES.R)
+  private void setCommonCriteriaModeEnabled(boolean enabled) {
+    mDevicePolicyManager.setCommonCriteriaModeEnabled(mAdminComponentName, enabled);
+  }
+
+  @TargetApi(VERSION_CODES.S)
+  private void setUsbDataSignalingEnabled(boolean enabled) {
+    mDevicePolicyManagerGateway.setUsbDataSignalingEnabled(enabled);
+  }
+
+  @TargetApi(VERSION_CODES.S)
+  private boolean canUsbDataSignalingBeDisabled() {
+    return mDevicePolicyManagerGateway.canUsbDataSignalingBeDisabled();
+  }
+
+  @TargetApi(VERSION_CODES.M)
+  private void setKeyGuardDisabled(boolean disabled) {
+    mDevicePolicyManagerGateway.setKeyguardDisabled(
+        disabled,
+        (v) -> onSuccessLog("setKeyGuardDisabled(%b)", disabled),
+        (e) ->
+            showToast(
+                disabled ? R.string.unable_disable_keyguard : R.string.unable_enable_keyguard));
+
+    if (!mDevicePolicyManager.setKeyguardDisabled(mAdminComponentName, disabled)) {
+      // this should not happen
+      if (disabled) {
+        showToast(R.string.unable_disable_keyguard);
+      } else {
+        showToast(R.string.unable_enable_keyguard);
+      }
+    }
+  }
+
+  @TargetApi(VERSION_CODES.LOLLIPOP)
+  private void setScreenCaptureDisabled(boolean disabled) {
+    mDevicePolicyManager.setScreenCaptureDisabled(mAdminComponentName, disabled);
+  }
+
+  @TargetApi(VERSION_CODES.R)
+  private void setScreenCaptureDisabledOnParent(boolean disabled) {
+    mParentDevicePolicyManager.setScreenCaptureDisabled(mAdminComponentName, disabled);
+  }
+
+  private boolean isDeviceOwner() {
+    return mDevicePolicyManager.isDeviceOwnerApp(mPackageName);
+  }
+
+  @TargetApi(VERSION_CODES.O)
+  private boolean isNetworkLoggingEnabled() {
+    if (Util.SDK_INT < VERSION_CODES.S) {
+      if (!(isDeviceOwner() || hasNetworkLoggingDelegation())) {
+        return false;
+      }
+    } else {
+      if (!(isDeviceOwner() || isManagedProfileOwner() || hasNetworkLoggingDelegation())) {
+        return false;
+      }
+    }
+    return mDevicePolicyManager.isNetworkLoggingEnabled(mAdminComponentName);
+  }
+
+  private boolean hasNetworkLoggingDelegation() {
+    return Util.hasDelegation(getActivity(), DevicePolicyManager.DELEGATION_NETWORK_LOGGING);
+  }
+
+  @TargetApi(VERSION_CODES.O)
+  private boolean isSecurityLoggingEnabled() {
+    return mDevicePolicyManager.isSecurityLoggingEnabled(mAdminComponentName);
+  }
+
+  @TargetApi(VERSION_CODES.N)
+  private void requestBugReport() {
+    mDevicePolicyManagerGateway.requestBugreport(
+        (v) -> onSuccessLog("requestBugreport"),
+        (e) ->
+            onErrorOrFailureShowToast(
+                "requestBugreport",
+                e,
+                R.string.bugreport_failure_throttled,
+                R.string.bugreport_failure_exception));
+  }
+
+  @TargetApi(VERSION_CODES.M)
+  private void setStatusBarDisabled(boolean disable) {
+    if (!mDevicePolicyManager.setStatusBarDisabled(mAdminComponentName, disable)) {
+      if (disable) {
+        showToast("Unable to disable status bar when lock password is set.");
+      }
+    }
+  }
+
+  @TargetApi(VERSION_CODES.P)
+  private boolean installKeyPair(
+      final PrivateKey key, final Certificate cert, final String alias, boolean isUserSelectable) {
+    try {
+      if (Util.SDK_INT >= VERSION_CODES.P) {
+
+        return mDevicePolicyManager.installKeyPair(
+            mAdminComponentName,
+            key,
+            new Certificate[] {cert},
+            alias,
+            isUserSelectable ? DevicePolicyManager.INSTALLKEY_SET_USER_SELECTABLE : 0);
+      } else {
+        if (!isUserSelectable) {
+          throw new IllegalArgumentException("Cannot set key as non-user-selectable prior to P");
+        }
+        return mDevicePolicyManager.installKeyPair(mAdminComponentName, key, cert, alias);
+      }
+    } catch (SecurityException e) {
+      Log.w(TAG, "Not allowed to install keys", e);
+      return false;
+    }
+  }
+
+  private void generateKeyPair(final KeyGenerationParameters params) {
+    new GenerateKeyAndCertificateTask(params, getActivity(), mAdminComponentName).execute();
+  }
+
+  /** Dispatches an intent to capture image or video. */
+  private void dispatchCaptureIntent(String action, int requestCode, Uri storageUri) {
+    final Intent captureIntent = new Intent(action);
+    if (captureIntent.resolveActivity(mPackageManager) != null) {
+      captureIntent.putExtra(MediaStore.EXTRA_OUTPUT, storageUri);
+      startActivityForResult(captureIntent, requestCode);
+    } else {
+      showToast(R.string.camera_app_not_found);
+    }
+  }
+
+  /** Creates a content uri to be used with the capture intent. */
+  private Uri getStorageUri(String fileName) {
+    final String filePath =
+        getActivity().getFilesDir() + File.separator + "media" + File.separator + fileName;
+    final File file = new File(filePath);
+    // Create the folder if it doesn't exist.
+    file.getParentFile().mkdirs();
+    return FileProvider.getUriForFile(getActivity(), mPackageName + ".fileprovider", file);
+  }
+
+  /**
+   * Shows a list of primary user apps in a dialog.
+   *
+   * @param dialogTitle the title to show for the dialog
+   * @param callback will be called with the list apps that the user has selected when he closes the
+   *     dialog. The callback is not fired if the user cancels.
+   */
+  private void showManageLockTaskListPrompt(
+      int dialogTitle, final ManageLockTaskListCallback callback) {
+    if (getActivity() == null || getActivity().isFinishing()) {
+      return;
+    }
+    Intent launcherIntent = Util.getLauncherIntent(getActivity());
+    final List<ResolveInfo> primaryUserAppList =
+        mPackageManager.queryIntentActivities(launcherIntent, 0);
+    Intent homeIntent = new Intent(Intent.ACTION_MAIN);
+    homeIntent.addCategory(Intent.CATEGORY_HOME);
+    // Also show the default launcher in this list
+    final ResolveInfo defaultLauncher = mPackageManager.resolveActivity(homeIntent, 0);
+    primaryUserAppList.add(defaultLauncher);
+    if (primaryUserAppList.isEmpty()) {
+      showToast(R.string.no_primary_app_available);
+    } else {
+      Collections.sort(primaryUserAppList, new ResolveInfo.DisplayNameComparator(mPackageManager));
+      final LockTaskAppInfoArrayAdapter appInfoArrayAdapter =
+          new LockTaskAppInfoArrayAdapter(getActivity(), R.id.pkg_name, primaryUserAppList);
+      ListView listView = new ListView(getActivity());
+      listView.setAdapter(appInfoArrayAdapter);
+      listView.setOnItemClickListener(
+          new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+              appInfoArrayAdapter.onItemClick(parent, view, position, id);
+            }
+          });
+
+      new AlertDialog.Builder(getActivity())
+          .setTitle(getString(dialogTitle))
+          .setView(listView)
+          .setPositiveButton(
+              android.R.string.ok,
+              new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                  String[] lockTaskEnabledArray = appInfoArrayAdapter.getLockTaskList();
+                  callback.onPositiveButtonClicked(lockTaskEnabledArray);
+                }
+              })
+          .setNegativeButton(
+              android.R.string.cancel,
+              new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                  dialog.dismiss();
+                }
+              })
+          .show();
+    }
+  }
+
+  /**
+   * Shows a prompt to collect a package name and checks whether the lock task for the corresponding
+   * app is permitted or not.
+   */
+  private void showCheckLockTaskPermittedPrompt() {
+    if (getActivity() == null || getActivity().isFinishing()) {
+      return;
+    }
+    View view = getActivity().getLayoutInflater().inflate(R.layout.simple_edittext, null);
+    final EditText input = (EditText) view.findViewById(R.id.input);
+    input.setHint(getString(R.string.input_package_name_hints));
+
+    new AlertDialog.Builder(getActivity())
+        .setTitle(getString(R.string.check_lock_task_permitted))
+        .setView(view)
+        .setPositiveButton(
+            android.R.string.ok,
+            new DialogInterface.OnClickListener() {
+              @Override
+              public void onClick(DialogInterface dialog, int which) {
+                String packageName = input.getText().toString();
+                boolean isLockTaskPermitted =
+                    mDevicePolicyManagerGateway.isLockTaskPermitted(packageName);
+                showToast(
+                    isLockTaskPermitted
+                        ? R.string.check_lock_task_permitted_result_permitted
+                        : R.string.check_lock_task_permitted_result_not_permitted);
+                dialog.dismiss();
+              }
+            })
+        .setNegativeButton(
+            android.R.string.cancel,
+            new DialogInterface.OnClickListener() {
+              @Override
+              public void onClick(DialogInterface dialog, int which) {
+                dialog.dismiss();
+              }
+            })
+        .show();
+  }
+
+  /**
+   * Shows a prompt to ask for a password to reset to and to set whether this requires re-entry
+   * before any further changes and/or whether the password needs to be entered during boot to start
+   * the user.
+   */
+  private void showResetPasswordPrompt() {
+    View dialogView =
+        getActivity().getLayoutInflater().inflate(R.layout.reset_password_dialog, null);
+
+    final EditText passwordView = (EditText) dialogView.findViewById(R.id.password);
+    final CheckBox requireEntry =
+        (CheckBox) dialogView.findViewById(R.id.require_password_entry_checkbox);
+    final CheckBox dontRequireOnBoot =
+        (CheckBox) dialogView.findViewById(R.id.dont_require_password_on_boot_checkbox);
+
+    DialogInterface.OnClickListener resetListener =
+        new DialogInterface.OnClickListener() {
+          @Override
+          public void onClick(DialogInterface dialogInterface, int which) {
+            String password = passwordView.getText().toString();
+            if (TextUtils.isEmpty(password)) {
+              password = null;
+            }
+
+            int flags = 0;
+            flags |=
+                requireEntry.isChecked() ? DevicePolicyManager.RESET_PASSWORD_REQUIRE_ENTRY : 0;
+            flags |=
+                dontRequireOnBoot.isChecked()
+                    ? DevicePolicyManager.RESET_PASSWORD_DO_NOT_ASK_CREDENTIALS_ON_BOOT
+                    : 0;
+
+            boolean ok = false;
+            try {
+              ok = mDevicePolicyManager.resetPassword(password, flags);
+            } catch (IllegalArgumentException | IllegalStateException | SecurityException e) {
+              // Not allowed to set password or trying to set a bad password, eg. 2 characters
+              // where system minimum length is 4.
+              Log.w(TAG, "Failed to reset password", e);
+            }
+            showToast(ok ? R.string.password_reset_success : R.string.password_reset_failed);
+          }
+        };
+
+    new AlertDialog.Builder(getActivity())
+        .setTitle(R.string.reset_password)
+        .setView(dialogView)
+        .setPositiveButton(android.R.string.ok, resetListener)
+        .setNegativeButton(android.R.string.cancel, null)
+        .show();
+  }
+
+  /**
+   * Shows a prompt to ask for confirmation on wiping the profile / device and also provide an
+   * option to set if external storage and factory reset protection data also needs to wiped.
+   */
+  private void showWipeDataPrompt(boolean wipeDevice) {
+    final LayoutInflater inflater = getActivity().getLayoutInflater();
+    final View dialogView = inflater.inflate(R.layout.wipe_data_dialog_prompt, null);
+    final CheckBox externalStorageCheckBox =
+        (CheckBox) dialogView.findViewById(R.id.external_storage_checkbox);
+    final CheckBox resetProtectionCheckBox =
+        (CheckBox) dialogView.findViewById(R.id.reset_protection_checkbox);
+
+    new AlertDialog.Builder(getActivity())
+        .setTitle(
+            wipeDevice
+                ? R.string.factory_reset_device_title
+                : R.string.remove_managed_profile_title)
+        .setView(dialogView)
+        .setPositiveButton(
+            android.R.string.ok,
+            new DialogInterface.OnClickListener() {
+              @Override
+              public void onClick(DialogInterface dialogInterface, int i) {
+                int flags = 0;
+                flags |=
+                    (externalStorageCheckBox.isChecked()
+                        ? DevicePolicyManager.WIPE_EXTERNAL_STORAGE
+                        : 0);
+                flags |=
+                    (resetProtectionCheckBox.isChecked()
+                        ? DevicePolicyManager.WIPE_RESET_PROTECTION_DATA
+                        : 0);
+                if (wipeDevice) {
+                  if (Util.SDK_INT >= VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    // Since U, factory reset needs to use wipeDevice()
+                    mDevicePolicyManagerGateway.wipeDevice(
+                        flags, (v) -> onSuccessLog("wipeData"), (e) -> onErrorLog("wipeData", e));
+                  } else if (mIsOrganizationOwnedProfileOwner) {
+                    // Before U, factory reset by COPE goes via the parent DPM instance
+                    DevicePolicyManagerGatewayImpl.forParentProfile(getActivity())
+                        .wipeData(
+                            /* flags= */ 0,
+                            (v) -> onSuccessLog("wipeData"),
+                            (e) -> onErrorLog("wipeData", e));
+                  } else {
+                    // Before U, factory reset by DO goes via the regular DPM instance
+                    mDevicePolicyManagerGateway.wipeData(
+                        flags, (v) -> onSuccessLog("wipeData"), (e) -> onErrorLog("wipeData", e));
+                  }
+                } else {
+                  // Wipe user
+                  mDevicePolicyManagerGateway.wipeData(
+                      flags, (v) -> onSuccessLog("wipeData"), (e) -> onErrorLog("wipeData", e));
+                }
+              }
+            })
+        .setNegativeButton(android.R.string.cancel, null)
+        .show();
+  }
+
+  /** Shows a prompt to ask for confirmation on removing device owner. */
+  private void showRemoveDeviceOwnerPrompt() {
+    new AlertDialog.Builder(getActivity())
+        .setTitle(R.string.remove_device_owner_title)
+        .setMessage(R.string.remove_device_owner_confirmation)
+        .setPositiveButton(
+            android.R.string.ok,
+            (d, i) ->
+                mDevicePolicyManagerGateway.clearDeviceOwnerApp(
+                    (v) -> {
+                      if (getActivity() != null && !getActivity().isFinishing()) {
+                        showToast(R.string.device_owner_removed);
+                        getActivity().finish();
+                      }
+                    },
+                    (e) -> onErrorLog("clearDeviceOwnerApp", e)))
+        .setNegativeButton(android.R.string.cancel, null)
+        .show();
+  }
+
+  /** Shows a message box with the device wifi mac address. */
+  @TargetApi(VERSION_CODES.N)
+  private void showWifiMacAddress() {
+    final String macAddress = mDevicePolicyManager.getWifiMacAddress(mAdminComponentName);
+    final String message =
+        macAddress != null
+            ? macAddress
+            : getString(R.string.show_wifi_mac_address_not_available_msg);
+    new AlertDialog.Builder(getActivity())
+        .setTitle(R.string.show_wifi_mac_address_title)
+        .setMessage(message)
+        .setPositiveButton(android.R.string.ok, null)
+        .show();
+  }
+
+  private void setPreferenceChangeListeners(String[] preferenceKeys) {
+    for (String key : preferenceKeys) {
+      findPreference(key).setOnPreferenceChangeListener(this);
+    }
+  }
+
+  /**
+   * Update the preference switch for {@link Settings.Global#STAY_ON_WHILE_PLUGGED_IN} setting.
+   *
+   * <p>If either one of the {@link BatteryManager#BATTERY_PLUGGED_AC}, {@link
+   * BatteryManager#BATTERY_PLUGGED_USB}, {@link BatteryManager#BATTERY_PLUGGED_WIRELESS} values is
+   * set, we toggle the preference to true and update the setting value to {@link
+   * #BATTERY_PLUGGED_ANY}
+   */
+  private void updateStayOnWhilePluggedInPreference() {
+    if (!mStayOnWhilePluggedInSwitchPreference.isEnabled()) {
+      return;
+    }
+
+    boolean checked = false;
+    final int currentState =
+        Settings.Global.getInt(
+            getActivity().getContentResolver(), Settings.Global.STAY_ON_WHILE_PLUGGED_IN, 0);
+    checked =
+        (currentState
+                & (BatteryManager.BATTERY_PLUGGED_AC
+                    | BatteryManager.BATTERY_PLUGGED_USB
+                    | BatteryManager.BATTERY_PLUGGED_WIRELESS))
+            != 0;
+    mDevicePolicyManager.setGlobalSetting(
+        mAdminComponentName,
+        Settings.Global.STAY_ON_WHILE_PLUGGED_IN,
+        checked ? BATTERY_PLUGGED_ANY : DONT_STAY_ON);
+    mStayOnWhilePluggedInSwitchPreference.setChecked(checked);
+  }
+
+  /**
+   * Update the preference switch for {@link Settings.Secure#INSTALL_NON_MARKET_APPS} setting.
+   *
+   * <p>If one of the user restrictions {@link UserManager#DISALLOW_INSTALL_UNKNOWN_SOURCES} or
+   * {@link DISALLOW_INSTALL_UNKNOWN_SOURCES_GLOBALLY} is set, then we disable this preference.
+   */
+  public void updateInstallNonMarketAppsPreference() {
+    int isInstallNonMarketAppsAllowed =
+        Settings.Secure.getInt(
+            getActivity().getContentResolver(), Settings.Secure.INSTALL_NON_MARKET_APPS, 0);
+    mInstallNonMarketAppsPreference.setChecked(isInstallNonMarketAppsAllowed == 0 ? false : true);
+  }
+
+  /**
+   * Shows the default response for future runtime permission requests by applications, and lets the
+   * user change the default value.
+   */
+  @TargetApi(VERSION_CODES.M)
+  private void showSetPermissionPolicyDialog() {
+    if (getActivity() == null || getActivity().isFinishing()) {
+      return;
+    }
+    View setPermissionPolicyView =
+        getActivity().getLayoutInflater().inflate(R.layout.set_permission_policy, null);
+    final RadioGroup permissionGroup =
+        (RadioGroup) setPermissionPolicyView.findViewById(R.id.set_permission_group);
+
+    int permissionPolicy = mDevicePolicyManager.getPermissionPolicy(mAdminComponentName);
+    switch (permissionPolicy) {
+      case DevicePolicyManager.PERMISSION_POLICY_PROMPT:
+        ((RadioButton) permissionGroup.findViewById(R.id.prompt)).toggle();
+        break;
+      case DevicePolicyManager.PERMISSION_POLICY_AUTO_GRANT:
+        ((RadioButton) permissionGroup.findViewById(R.id.accept)).toggle();
+        break;
+      case DevicePolicyManager.PERMISSION_POLICY_AUTO_DENY:
+        ((RadioButton) permissionGroup.findViewById(R.id.deny)).toggle();
+        break;
+    }
+
+    new AlertDialog.Builder(getActivity())
+        .setTitle(getString(R.string.set_default_permission_policy))
+        .setView(setPermissionPolicyView)
+        .setPositiveButton(
+            android.R.string.ok,
+            new DialogInterface.OnClickListener() {
+              @Override
+              public void onClick(DialogInterface dialog, int which) {
+                int policy = 0;
+                int checked = permissionGroup.getCheckedRadioButtonId();
+                if (checked == R.id.prompt) {
+                  policy = DevicePolicyManager.PERMISSION_POLICY_PROMPT;
+                } else if (checked == R.id.accept) {
+                  policy = DevicePolicyManager.PERMISSION_POLICY_AUTO_GRANT;
+                } else if (checked == R.id.deny) {
+                  policy = DevicePolicyManager.PERMISSION_POLICY_AUTO_DENY;
+                }
+                mDevicePolicyManager.setPermissionPolicy(mAdminComponentName, policy);
+                dialog.dismiss();
+              }
+            })
+        .show();
+  }
+
+  /**
+   * Shows a prompt that allows entering the account type for which account management should be
+   * disabled or enabled.
+   */
+  private void showSetDisableAccountManagementPrompt() {
+    if (getActivity() == null || getActivity().isFinishing()) {
+      return;
+    }
+    View view = LayoutInflater.from(getActivity()).inflate(R.layout.simple_edittext, null);
+    final EditText input = (EditText) view.findViewById(R.id.input);
+    input.setHint(R.string.account_type_hint);
+
+    new AlertDialog.Builder(getActivity())
+        .setTitle(R.string.set_disable_account_management)
+        .setView(view)
+        .setPositiveButton(
+            R.string.disable,
+            new DialogInterface.OnClickListener() {
+              @Override
+              public void onClick(DialogInterface dialogInterface, int i) {
+                String accountType = input.getText().toString();
+                setDisableAccountManagement(accountType, true);
+              }
+            })
+        .setNeutralButton(
+            R.string.enable,
+            new DialogInterface.OnClickListener() {
+              @Override
+              public void onClick(DialogInterface dialogInterface, int i) {
+                String accountType = input.getText().toString();
+                setDisableAccountManagement(accountType, false);
+              }
+            })
+        .setNegativeButton(android.R.string.cancel, null /* Nothing to do */)
+        .show();
+  }
+
+  private void setDisableAccountManagement(String accountType, boolean disabled) {
+    if (!TextUtils.isEmpty(accountType)) {
+      mDevicePolicyManager.setAccountManagementDisabled(mAdminComponentName, accountType, disabled);
+      showToast(
+          disabled ? R.string.account_management_disabled : R.string.account_management_enabled,
+          accountType);
+      return;
+    }
+    showToast(R.string.fail_to_set_account_management);
+  }
+
+  /** Shows a list of account types that is disabled for account management. */
+  private void showDisableAccountTypeList() {
+    if (getActivity() == null || getActivity().isFinishing()) {
+      return;
+    }
+    String[] disabledAccountTypeList = mDevicePolicyManager.getAccountTypesWithManagementDisabled();
+    Arrays.sort(disabledAccountTypeList, String.CASE_INSENSITIVE_ORDER);
+    if (disabledAccountTypeList == null || disabledAccountTypeList.length == 0) {
+      showToast(R.string.no_disabled_account);
+    } else {
+      new AlertDialog.Builder(getActivity())
+          .setTitle(R.string.list_of_disabled_account_types)
+          .setAdapter(
+              new ArrayAdapter<String>(
+                  getActivity(),
+                  android.R.layout.simple_list_item_1,
+                  android.R.id.text1,
+                  disabledAccountTypeList),
+              null)
+          .setPositiveButton(android.R.string.ok, null)
+          .show();
+    }
+  }
+
+  /**
+   * For user creation: Shows a prompt asking for the username of the new user and whether the setup
+   * wizard should be skipped.
+   */
+  @TargetApi(VERSION_CODES.N)
+  private void showCreateAndManageUserPrompt() {
+    if (getActivity() == null || getActivity().isFinishing()) {
+      return;
+    }
+
+    final View dialogView =
+        getActivity()
+            .getLayoutInflater()
+            .inflate(R.layout.create_and_manage_user_dialog_prompt, null);
+
+    final EditText userNameEditText = (EditText) dialogView.findViewById(R.id.user_name);
+    userNameEditText.setHint(R.string.enter_username_hint);
+    final CheckBox skipSetupWizardCheckBox =
+        (CheckBox) dialogView.findViewById(R.id.skip_setup_wizard_checkbox);
+    final CheckBox makeUserEphemeralCheckBox =
+        (CheckBox) dialogView.findViewById(R.id.make_user_ephemeral_checkbox);
+    final CheckBox leaveAllSystemAppsEnabled =
+        (CheckBox) dialogView.findViewById(R.id.leave_all_system_apps_enabled_checkbox);
+    if (Util.SDK_INT < VERSION_CODES.P) {
+      makeUserEphemeralCheckBox.setEnabled(false);
+      leaveAllSystemAppsEnabled.setEnabled(false);
+    }
+
+    new AlertDialog.Builder(getActivity())
+        .setTitle(R.string.create_and_manage_user)
+        .setView(dialogView)
+        .setPositiveButton(
+            android.R.string.ok,
+            new DialogInterface.OnClickListener() {
+              @Override
+              public void onClick(DialogInterface dialogInterface, int i) {
+                String name = userNameEditText.getText().toString();
+                if (!TextUtils.isEmpty(name)) {
+                  int flags = 0;
+                  if (skipSetupWizardCheckBox.isChecked()) {
+                    flags |= DevicePolicyManager.SKIP_SETUP_WIZARD;
+                  }
+                  if (makeUserEphemeralCheckBox.isChecked()) {
+                    flags |= DevicePolicyManager.MAKE_USER_EPHEMERAL;
+                  }
+                  if (leaveAllSystemAppsEnabled.isChecked()) {
+                    flags |= DevicePolicyManager.LEAVE_ALL_SYSTEM_APPS_ENABLED;
+                  }
+
+                  mDevicePolicyManagerGateway.createAndManageUser(
+                      name,
+                      flags,
+                      (u) ->
+                          showToast(R.string.user_created, mUserManager.getSerialNumberForUser(u)),
+                      (e) -> showToast(R.string.failed_to_create_user));
+                }
+              }
+            })
+        .setNegativeButton(android.R.string.cancel, null)
+        .show();
+  }
+
+  /**
+   * For user removal: Shows a prompt for a user serial number. The associated user will be removed.
+   */
+  private void showRemoveUserPromptLegacy() {
+    if (getActivity() == null || getActivity().isFinishing()) {
+      return;
+    }
+    View view = LayoutInflater.from(getActivity()).inflate(R.layout.simple_edittext, null);
+    final EditText input = (EditText) view.findViewById(R.id.input);
+    input.setHint(R.string.enter_user_id);
+    input.setRawInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_SIGNED);
+
+    new AlertDialog.Builder(getActivity())
+        .setTitle(R.string.remove_user)
+        .setView(view)
+        .setPositiveButton(
+            android.R.string.ok,
+            new DialogInterface.OnClickListener() {
+              @Override
+              public void onClick(DialogInterface dialogInterface, int i) {
+                long serialNumber = -1;
+                try {
+                  serialNumber = Long.parseLong(input.getText().toString());
+                  removeUser(mDevicePolicyManagerGateway.getUserHandle(serialNumber));
+                } catch (NumberFormatException e) {
+                  // Error message is printed in the next line.
+                }
+              }
+            })
+        .show();
+  }
+
+  private void removeUser(UserHandle userHandle) {
+    mDevicePolicyManagerGateway.removeUser(
+        userHandle,
+        (u) -> onSuccessShowToast("removeUser()", R.string.user_removed),
+        (e) -> onErrorShowToast("removeUser()", e, R.string.failed_to_remove_user));
+  }
+
+  /**
+   * For user removal: If the device is P or above, shows a prompt for choosing a user to be
+   * removed. Otherwise, shows a prompt for user to enter a serial number, as {@link
+   * DevicePolicyManager#getSecondaryUsers} is not available.
+   */
+  private void showRemoveUserPrompt() {
+    if (Util.SDK_INT >= VERSION_CODES.P) {
+      showChooseUserPrompt(R.string.remove_user, (u) -> removeUser(u));
+    } else {
+      showRemoveUserPromptLegacy();
+    }
+  }
+
+  /** For user switch: Shows a prompt for choosing a user to be switched to. */
+  @TargetApi(VERSION_CODES.P)
+  private void showSwitchUserPrompt() {
+    showChooseUserPrompt(
+        R.string.switch_user,
+        userHandle -> {
+          mDevicePolicyManagerGateway.switchUser(
+              userHandle,
+              (v) -> onSuccessShowToast("switchUser", R.string.user_switched),
+              (e) -> onErrorShowToast("switchUser", e, R.string.failed_to_switch_user));
+        });
+  }
+
+  /**
+   * For starting user in background: Shows a prompt for choosing a user to be started in
+   * background.
+   */
+  @TargetApi(VERSION_CODES.P)
+  private void showStartUserInBackgroundPrompt() {
+    showChooseUserPrompt(
+        R.string.start_user_in_background,
+        userHandle -> {
+          mDevicePolicyManagerGateway.startUserInBackground(
+              userHandle,
+              (v) ->
+                  onSuccessShowToast("startUserInBackground", R.string.user_started_in_background),
+              (e) ->
+                  onErrorShowToast(
+                      "startUserInBackground", e, R.string.failed_to_start_user_in_background));
+        });
+  }
+
+  /** For user stop: Shows a prompt for choosing a user to be stopped. */
+  @TargetApi(VERSION_CODES.P)
+  private void showStopUserPrompt() {
+    showChooseUserPrompt(
+        R.string.stop_user,
+        userHandle -> {
+          mDevicePolicyManagerGateway.stopUser(
+              userHandle,
+              (v) -> onSuccessShowToast("stopUser", R.string.user_stopped),
+              (e) -> onErrorShowToast("stopUser", e, R.string.failed_to_stop_user));
+        });
+  }
+
+  private interface UserCallback {
+    void onUserChosen(UserHandle userHandle);
+  }
+
+  /** Shows a prompt for choosing a user. The callback will be invoked with chosen user. */
+  @TargetApi(VERSION_CODES.P)
+  private void showChooseUserPrompt(int titleResId, UserCallback callback) {
+    if (getActivity() == null || getActivity().isFinishing()) {
+      return;
+    }
+
+    List<UserHandle> secondaryUsers = mDevicePolicyManager.getSecondaryUsers(mAdminComponentName);
+    if (secondaryUsers.isEmpty()) {
+      showToast(R.string.no_secondary_users_available);
+    } else {
+      UserArrayAdapter userArrayAdapter =
+          new UserArrayAdapter(getActivity(), R.id.user_name, secondaryUsers);
+      new AlertDialog.Builder(getActivity())
+          .setTitle(titleResId)
+          .setAdapter(
+              userArrayAdapter,
+              (dialog, position) -> callback.onUserChosen(secondaryUsers.get(position)))
+          .show();
+    }
+  }
+
+  /** Logout the current user. */
+  @TargetApi(VERSION_CODES.P)
+  private void logoutUser() {
+    int status = mDevicePolicyManager.logoutUser(mAdminComponentName);
+    showToast(
+        status == USER_OPERATION_SUCCESS ? R.string.user_logouted : R.string.failed_to_logout_user);
+  }
+
+  /** Asks for the package name whose uninstallation should be blocked / unblocked. */
+  private void showBlockUninstallationByPackageNamePrompt() {
+    Activity activity = getActivity();
+    if (activity == null || activity.isFinishing()) {
+      return;
+    }
+    View view = LayoutInflater.from(activity).inflate(R.layout.simple_edittext, null);
+    final EditText input = (EditText) view.findViewById(R.id.input);
+    input.setHint(getString(R.string.input_package_name_hints));
+    AlertDialog.Builder builder = new AlertDialog.Builder(activity);
+    builder
+        .setTitle(R.string.block_uninstallation_title)
+        .setView(view)
+        .setPositiveButton(
+            R.string.block,
+            new DialogInterface.OnClickListener() {
+              @Override
+              public void onClick(DialogInterface dialogInterface, int i) {
+                String pkgName = input.getText().toString();
+                if (!TextUtils.isEmpty(pkgName)) {
+                  mDevicePolicyManager.setUninstallBlocked(mAdminComponentName, pkgName, true);
+                  showToast(R.string.uninstallation_blocked, pkgName);
+                } else {
+                  showToast(R.string.block_uninstallation_failed_invalid_pkgname);
+                }
+              }
+            })
+        .setNeutralButton(
+            R.string.unblock,
+            new DialogInterface.OnClickListener() {
+              @Override
+              public void onClick(DialogInterface dialogInterface, int i) {
+                String pkgName = input.getText().toString();
+                if (!TextUtils.isEmpty(pkgName)) {
+                  mDevicePolicyManager.setUninstallBlocked(mAdminComponentName, pkgName, false);
+                  showToast(R.string.uninstallation_allowed, pkgName);
+                } else {
+                  showToast(R.string.block_uninstallation_failed_invalid_pkgname);
+                }
+              }
+            })
+        .setNegativeButton(android.R.string.cancel, null)
+        .show();
+  }
+
+  @TargetApi(VERSION_CODES.N)
+  private void loadAppFeedbackNotifications() {
+    if (Util.SDK_INT < VERSION_CODES.N) {
+      // This toggle is only available >= N due to device_policy_header.xml
+      // so this code not executing will not be noticed
+      return;
+    }
+    mEnableAppFeedbackNotificationsPreference.setChecked(
+        PreferenceManager.getDefaultSharedPreferences(getContext())
+            .getBoolean(getString(R.string.app_feedback_notifications), false));
+  }
+
+  private void loadAppStatus() {
+    final @StringRes List<Integer> appStatus = new ArrayList<>();
+
+    if (mDevicePolicyManager.isProfileOwnerApp(mPackageName)) {
+      if (Util.isFullUser(getContext())) {
+        appStatus.add(R.string.this_is_a_profile_owner_on_full_user);
+      } else if (mIsOrganizationOwnedProfileOwner) {
+        appStatus.add(R.string.this_is_an_org_owned_profile_owner);
+      } else {
+        appStatus.add(R.string.this_is_a_profile_owner);
+      }
+    } else if (mDevicePolicyManager.isDeviceOwnerApp(mPackageName)) {
+      appStatus.add(R.string.this_is_a_device_owner);
+    } else if (Util.isDelegatedApp(getActivity())) {
+      appStatus.add(R.string.this_is_a_delegated_app);
+    }
+    if (Util.isDeviceManagementRoleHolder(getActivity())) {
+      appStatus.add(R.string.this_is_a_role_holder);
+    }
+
+    if (appStatus.isEmpty()) {
+      findPreference(APP_STATUS_KEY).setSummary(R.string.this_is_not_an_admin);
+    } else if (appStatus.size() == 1) {
+      findPreference(APP_STATUS_KEY).setSummary(appStatus.get(0));
+    } else {
+      findPreference(APP_STATUS_KEY)
+          .setSummary(
+              String.join(
+                  "\n", appStatus.stream().map(this::getString).collect(Collectors.toList())));
+    }
+  }
+
+  @TargetApi(VERSION_CODES.M)
+  @SuppressWarnings("SimpleDateFormat")
+  private void loadSecurityPatch() {
+    Preference securityPatchPreference = findPreference(SECURITY_PATCH_KEY);
+    if (!securityPatchPreference.isEnabled()) {
+      return;
+    }
+
+    String buildSecurityPatch = Build.VERSION.SECURITY_PATCH;
+    final Date date;
+    try {
+      date = new SimpleDateFormat(SECURITY_PATCH_FORMAT).parse(buildSecurityPatch);
+    } catch (ParseException e) {
+      securityPatchPreference.setSummary(
+          getString(R.string.invalid_security_patch, buildSecurityPatch));
+      return;
+    }
+    String display = DateFormat.getDateInstance(DateFormat.MEDIUM).format(date);
+    securityPatchPreference.setSummary(display);
+  }
+
+  @TargetApi(VERSION_CODES.S)
+  private void loadEnrollmentSpecificId() {
+    Preference enrollmentSpecificIdPreference = findPreference(ENROLLMENT_SPECIFIC_ID_KEY);
+    if (!enrollmentSpecificIdPreference.isEnabled()) {
+      return;
+    }
+
+    String esid = mDevicePolicyManager.getEnrollmentSpecificId();
+
+    enrollmentSpecificIdPreference.setSummary(
+        TextUtils.isEmpty(esid) ? getString(R.string.enrollment_specific_id_empty) : esid);
+  }
+
+  @TargetApi(VERSION_CODES.P)
+  private void loadSeparateChallenge() {
+    final Preference separateChallengePreference = findPreference(SEPARATE_CHALLENGE_KEY);
+    if (!separateChallengePreference.isEnabled()) {
+      return;
+    }
+
+    final Boolean separate = !mDevicePolicyManager.isUsingUnifiedPassword(mAdminComponentName);
+    separateChallengePreference.setSummary(
+        String.format(getString(R.string.separate_challenge_summary), Boolean.toString(separate)));
+  }
+
+  private void loadPasswordComplexity() {
+    Preference passwordComplexityPreference = findPreference(PASSWORD_COMPLEXITY_KEY);
+    if (!passwordComplexityPreference.isEnabled()) {
+      return;
+    }
+
+    String summary;
+    int complexity = PASSWORD_COMPLEXITY.get(mDevicePolicyManager.getPasswordComplexity());
+    if (isManagedProfileOwner() && Util.SDK_INT >= VERSION_CODES.R) {
+      int parentComplexity =
+          PASSWORD_COMPLEXITY.get(mParentDevicePolicyManager.getPasswordComplexity());
+      summary =
+          String.format(
+              getString(R.string.password_complexity_profile_summary),
+              getString(parentComplexity),
+              getString(complexity));
+    } else {
+      summary = getString(complexity);
+    }
+    passwordComplexityPreference.setSummary(summary);
+  }
+
+  @TargetApi(VERSION_CODES.S)
+  private int getRequiredComplexity(DevicePolicyManager dpm) {
+    return dpm.getRequiredPasswordComplexity();
+  }
+
+  private void loadRequiredPasswordComplexity() {
+    Preference requiredPasswordComplexityPreference =
+        findPreference(REQUIRED_PASSWORD_COMPLEXITY_KEY);
+    if (!requiredPasswordComplexityPreference.isEnabled()) {
+      return;
+    }
+
+    String summary;
+    int complexity = PASSWORD_COMPLEXITY.get(getRequiredComplexity(mDevicePolicyManager));
+    if (isManagedProfileOwner() && Util.SDK_INT >= VERSION_CODES.S) {
+      int parentComplexity =
+          PASSWORD_COMPLEXITY.get(getRequiredComplexity(mParentDevicePolicyManager));
+      summary =
+          String.format(
+              getString(R.string.password_complexity_profile_summary),
+              getString(parentComplexity),
+              getString(complexity));
+    } else {
+      summary = getString(complexity);
+    }
+
+    requiredPasswordComplexityPreference.setSummary(summary);
+  }
+
+  // NOTE: The setRequiredPasswordComplexity call is gated by a check in device_policy_header.xml,
+  // where the minSdkVersion for it is specified. That prevents it from being callable on devices
+  // running older releases and obviates the need for a target sdk check here.
+  @TargetApi(VERSION_CODES.S)
+  private void setRequiredPasswordComplexity(int complexity) {
+    setRequiredPasswordComplexity(mDevicePolicyManager, complexity);
+  }
+
+  // NOTE: The setRequiredPasswordComplexity call is gated by a check in device_policy_header.xml,
+  // where the minSdkVersion for it is specified. That prevents it from being callable on devices
+  // running older releases and obviates the need for a target sdk check here.
+  @TargetApi(VERSION_CODES.S)
+  private void setRequiredPasswordComplexityOnParent(int complexity) {
+    setRequiredPasswordComplexity(mParentDevicePolicyManager, complexity);
+  }
+
+  // NOTE: The setRequiredPasswordComplexity call is gated by a check in device_policy_header.xml,
+  // where the minSdkVersion for it is specified. That prevents it from being callable on devices
+  // running older releases and obviates the need for a target sdk check here.
+  @TargetApi(VERSION_CODES.S)
+  private void setRequiredPasswordComplexity(DevicePolicyManager dpm, int complexity) {
+    dpm.setRequiredPasswordComplexity(complexity);
+    loadPasswordCompliant();
+    loadPasswordComplexity();
+    loadRequiredPasswordComplexity();
+  }
+
+  @TargetApi(VERSION_CODES.N)
+  private void loadPasswordCompliant() {
+    Preference passwordCompliantPreference = findPreference(PASSWORD_COMPLIANT_KEY);
+    if (!passwordCompliantPreference.isEnabled()) {
+      return;
+    }
+
+    String summary;
+    boolean compliant = mDevicePolicyManager.isActivePasswordSufficient();
+    if (isManagedProfileOwner()) {
+      boolean parentCompliant = mParentDevicePolicyManager.isActivePasswordSufficient();
+      final String deviceCompliant;
+      if (Util.SDK_INT < VERSION_CODES.S) {
+        deviceCompliant = "N/A";
+      } else {
+        deviceCompliant =
+            Boolean.toString(
+                mParentDevicePolicyManager.isActivePasswordSufficientForDeviceRequirement());
+      }
+      summary =
+          String.format(
+              getString(R.string.password_compliant_profile_summary),
+              Boolean.toString(parentCompliant),
+              deviceCompliant,
+              Boolean.toString(compliant));
+    } else {
+      summary =
+          String.format(
+              getString(R.string.password_compliant_summary), Boolean.toString(compliant));
+    }
+    passwordCompliantPreference.setSummary(summary);
+  }
+
+  @TargetApi(VERSION_CODES.P)
+  private void reloadEnableLogoutUi() {
+    if (mEnableLogoutPreference.isEnabled()) {
+      mEnableLogoutPreference.setChecked(mDevicePolicyManager.isLogoutEnabled());
+    }
+  }
+
+  @TargetApi(VERSION_CODES.P)
+  private void reloadAutoBrightnessUi() {
+    if (mAutoBrightnessPreference.isEnabled()) {
+      final String brightnessMode =
+          Settings.System.getString(
+              getActivity().getContentResolver(), Settings.System.SCREEN_BRIGHTNESS_MODE);
+      mAutoBrightnessPreference.setChecked(parseInt(brightnessMode, /* defaultValue= */ 0) == 1);
+    }
+  }
+
+  @TargetApi(VERSION_CODES.JELLY_BEAN_MR2)
+  private void reloadLocationModeUi() {
+    final String locationMode =
+        Settings.System.getString(getActivity().getContentResolver(), Secure.LOCATION_MODE);
+    mSetLocationModePreference.setChecked(parseInt(locationMode, 0) != Secure.LOCATION_MODE_OFF);
+  }
+
+  @TargetApi(VERSION_CODES.R)
+  private void reloadLocationEnabledUi() {
+    LocationManager locationManager = getActivity().getSystemService(LocationManager.class);
+    mSetLocationEnabledPreference.setChecked(locationManager.isLocationEnabled());
+  }
+
+  @TargetApi(VERSION_CODES.R)
+  private void reloadLockdownAdminConfiguredNetworksUi() {
+    boolean lockdown = mDevicePolicyManager.hasLockdownAdminConfiguredNetworks(mAdminComponentName);
+    mLockdownAdminConfiguredNetworksPreference.setChecked(lockdown);
+  }
+
+  private static int parseInt(String str, int defaultValue) {
+    try {
+      return Integer.parseInt(str);
+    } catch (NumberFormatException e) {
+      return defaultValue;
+    }
+  }
+
+  @TargetApi(VERSION_CODES.P)
+  private void reloadAffiliatedApis() {
+    if (mAffiliatedUserPreference.isEnabled()) {
+      mAffiliatedUserPreference.setSummary(
+          mDevicePolicyManager.isAffiliatedUser() ? R.string.yes : R.string.no);
+    }
+    mInstallExistingPackagePreference.refreshEnabledState();
+    mManageLockTaskListPreference.refreshEnabledState();
+    mSetLockTaskFeaturesPreference.refreshEnabledState();
+    mLogoutUserPreference.refreshEnabledState();
+    mDisableStatusBarPreference.refreshEnabledState();
+    mReenableStatusBarPreference.refreshEnabledState();
+    mDisableKeyguardPreference.refreshEnabledState();
+    mReenableKeyguardPreference.refreshEnabledState();
+  }
+
+  @TargetApi(VERSION_CODES.P)
+  private void loadIsEphemeralUserUi() {
+    if (mEphemeralUserPreference.isEnabled()) {
+      boolean isEphemeralUser = mDevicePolicyManager.isEphemeralUser(mAdminComponentName);
+      mEphemeralUserPreference.setSummary(isEphemeralUser ? R.string.yes : R.string.no);
+    }
+  }
+
+  @TargetApi(VERSION_CODES.LOLLIPOP)
+  private void reloadCameraDisableUi() {
+    boolean isCameraDisabled = mDevicePolicyManager.getCameraDisabled(mAdminComponentName);
+    mDisableCameraSwitchPreference.setChecked(isCameraDisabled);
+  }
+
+  @TargetApi(VERSION_CODES.R)
+  private void reloadCameraDisableOnParentUi() {
+    boolean isCameraDisabled = mParentDevicePolicyManager.getCameraDisabled(mAdminComponentName);
+    mDisableCameraOnParentSwitchPreference.setChecked(isCameraDisabled);
+  }
+
+  @TargetApi(VERSION_CODES.O)
+  private void reloadEnableNetworkLoggingUi() {
+    if (mEnableNetworkLoggingPreference.isEnabled()) {
+      boolean isNetworkLoggingEnabled = isNetworkLoggingEnabled();
+      mEnableNetworkLoggingPreference.setChecked(isNetworkLoggingEnabled);
+      mRequestNetworkLogsPreference.refreshEnabledState();
+    }
+  }
+
+  @TargetApi(VERSION_CODES.N)
+  private void reloadEnableSecurityLoggingUi() {
+    if (mEnableSecurityLoggingPreference.isEnabled()) {
+      boolean securityLoggingEnabled =
+          mDevicePolicyManager.isSecurityLoggingEnabled(mAdminComponentName);
+      mEnableSecurityLoggingPreference.setChecked(securityLoggingEnabled);
+      mRequestSecurityLogsPreference.refreshEnabledState();
+      mRequestPreRebootSecurityLogsPreference.refreshEnabledState();
+    }
+  }
+
+  @TargetApi(VERSION_CODES.O)
+  private void reloadEnableBackupServiceUi() {
+    if (mEnableBackupServicePreference.isEnabled()) {
+      mEnableBackupServicePreference.setChecked(
+          mDevicePolicyManager.isBackupServiceEnabled(mAdminComponentName));
+    }
+  }
+
+  // @TargetApi(VERSION_CODES.R)
+  private void reloadCommonCriteriaModeUi() {
+    if (mCommonCriteriaModePreference.isEnabled()) {
+      mCommonCriteriaModePreference.setChecked(
+          mDevicePolicyManager.isCommonCriteriaModeEnabled(mAdminComponentName));
+    }
+  }
+
+  @TargetApi(VERSION_CODES.S)
+  private void reloadEnableUsbDataSignalingUi() {
+    if (mEnableUsbDataSignalingPreference.isEnabled()) {
+      boolean enabled = mDevicePolicyManager.isUsbDataSignalingEnabled();
+      mEnableUsbDataSignalingPreference.setChecked(enabled);
+    }
+  }
+
+  @TargetApi(VERSION_CODES.LOLLIPOP)
+  private void reloadScreenCaptureDisableUi() {
+    boolean isScreenCaptureDisabled =
+        mDevicePolicyManager.getScreenCaptureDisabled(mAdminComponentName);
+    mDisableScreenCaptureSwitchPreference.setChecked(isScreenCaptureDisabled);
+  }
+
+  @TargetApi(VERSION_CODES.R)
+  private void reloadScreenCaptureDisableOnParentUi() {
+    boolean isScreenCaptureDisabled =
+        mParentDevicePolicyManager.getScreenCaptureDisabled(mAdminComponentName);
+    mDisableScreenCaptureOnParentSwitchPreference.setChecked(isScreenCaptureDisabled);
+  }
+
+  @TargetApi(VERSION_CODES.LOLLIPOP)
+  private void reloadSetAutoTimeRequiredUi() {
+    boolean isAutoTimeRequired = mDevicePolicyManager.getAutoTimeRequired();
+    mSetAutoTimeRequiredPreference.setChecked(isAutoTimeRequired);
+  }
+
+  @TargetApi(VERSION_CODES.R)
+  private void reloadSetAutoTimeUi() {
+    if (Util.SDK_INT < VERSION_CODES.R) {
+      return;
+    }
+    if (isOrganizationOwnedDevice()) {
+      boolean isAutoTime = mDevicePolicyManager.getAutoTimeEnabled(mAdminComponentName);
+      mSetAutoTimePreference.setChecked(isAutoTime);
+    }
+  }
+
+  @TargetApi(VERSION_CODES.R)
+  private void reloadSetAutoTimeZoneUi() {
+    if (Util.SDK_INT < VERSION_CODES.R) {
+      return;
+    }
+    if (isOrganizationOwnedDevice()) {
+      boolean isAutoTimeZone = mDevicePolicyManager.getAutoTimeZoneEnabled(mAdminComponentName);
+      mSetAutoTimeZonePreference.setChecked(isAutoTimeZone);
+    }
+  }
+
+  @TargetApi(VERSION_CODES.LOLLIPOP)
+  private void reloadMuteAudioUi() {
+    if (mMuteAudioSwitchPreference.isEnabled()) {
+      final boolean isAudioMuted = mDevicePolicyManager.isMasterVolumeMuted(mAdminComponentName);
+      mMuteAudioSwitchPreference.setChecked(isAudioMuted);
+    }
+  }
+
+  @TargetApi(VERSION_CODES.UPSIDE_DOWN_CAKE)
+  private void resetCredentialManagerPolicy() {
+    mDevicePolicyManager.setCredentialManagerPolicy(null);
+    showToast(R.string.credential_manager_policy_applied_toast);
+  }
+
+  @TargetApi(VERSION_CODES.UPSIDE_DOWN_CAKE)
+  private void showCredentialManagerPolicyDialog(int policyType) {
+    LinearLayout inputContainer =
+        (LinearLayout) getActivity().getLayoutInflater().inflate(R.layout.simple_edittext, null);
+    final EditText editText = (EditText) inputContainer.findViewById(R.id.input);
+
+    new AlertDialog.Builder(getActivity())
+        .setTitle(getString(R.string.credential_manager_policy_title))
+        .setView(inputContainer)
+        .setPositiveButton(
+            android.R.string.ok,
+            new DialogInterface.OnClickListener() {
+              @Override
+              public void onClick(DialogInterface dialog, int which) {
+                Set<String> packageNames = new HashSet<>();
+                String packageName = editText.getText().toString();
+                if (!TextUtils.isEmpty(packageName)) {
+                  packageNames.add(packageName);
+                }
+
+                mDevicePolicyManager.setCredentialManagerPolicy(
+                    new PackagePolicy(policyType, packageNames));
+
+                showToast(R.string.credential_manager_policy_applied_toast);
+                dialog.dismiss();
+              }
+            })
+        .setNegativeButton(
+            android.R.string.cancel,
+            new DialogInterface.OnClickListener() {
+              @Override
+              public void onClick(DialogInterface dialog, int which) {
+                dialog.cancel();
+              }
+            })
+        .show();
+  }
+
+  /** Shows a prompt to ask for package name which is used to enable a system app. */
+  private void showEnableSystemAppByPackageNamePrompt() {
+    if (getActivity() == null || getActivity().isFinishing()) {
+      return;
+    }
+    LinearLayout inputContainer =
+        (LinearLayout) getActivity().getLayoutInflater().inflate(R.layout.simple_edittext, null);
+    final EditText editText = (EditText) inputContainer.findViewById(R.id.input);
+    editText.setHint(getString(R.string.package_name_hints));
+
+    new AlertDialog.Builder(getActivity())
+        .setTitle(getString(R.string.enable_system_apps_title))
+        .setView(inputContainer)
+        .setPositiveButton(
+            android.R.string.ok,
+            (dialog, which) -> {
+              String packageName = editText.getText().toString();
+              mDevicePolicyManagerGateway.enableSystemApp(
+                  packageName,
+                  (v) ->
+                      onSuccessShowToast(
+                          "enableSystemApp",
+                          R.string.enable_system_apps_by_package_name_success_msg,
+                          packageName),
+                  (e) ->
+                      onErrorShowToast(
+                          "enableSystemApp", e, R.string.package_name_error, packageName));
+            })
+        .setNegativeButton(android.R.string.cancel, null)
+        .show();
+  }
+
+  private void showConfigurePolicyAndManageCredentialsPrompt() {
+    if (getActivity() == null || getActivity().isFinishing()) {
+      return;
+    }
+    final String appUriPolicyName = "appUriPolicy";
+    final String defaultPolicy =
+        "com.android.chrome#client.badssl.com:443#testAlias\n"
+            + "com.android.chrome#prod.idrix.eu/secure#testAlias\n"
+            + "de.blinkt.openvpn#192.168.0.1#vpnAlias";
+    LinearLayout inputContainer =
+        (LinearLayout) getActivity().getLayoutInflater().inflate(R.layout.simple_edittext, null);
+    final EditText editText = (EditText) inputContainer.findViewById(R.id.input);
+    editText.setSingleLine(false);
+    editText.setHint(defaultPolicy);
+    editText.setText(
+        PreferenceManager.getDefaultSharedPreferences(getActivity())
+            .getString(appUriPolicyName, defaultPolicy));
+
+    new AlertDialog.Builder(getActivity())
+        .setTitle(getString(R.string.request_manage_credentials))
+        .setView(inputContainer)
+        .setPositiveButton(
+            android.R.string.ok,
+            new DialogInterface.OnClickListener() {
+              @Override
+              public void onClick(DialogInterface dialog, int which) {
+                String policy = editText.getText().toString();
+                if (TextUtils.isEmpty(policy)) policy = defaultPolicy;
+                try {
+                  requestToManageCredentials(policy);
+                  SharedPreferences.Editor editor =
+                      PreferenceManager.getDefaultSharedPreferences(getActivity()).edit();
+                  editor.putString(appUriPolicyName, policy);
+                  editor.commit();
+                } finally {
+                  dialog.dismiss();
+                }
+              }
+            })
+        .setNegativeButton(android.R.string.cancel, null)
+        .show();
+  }
+
+  private void requestToManageCredentials(String policyStr) {
+    AppUriAuthenticationPolicy.Builder builder = new AppUriAuthenticationPolicy.Builder();
+    String[] policies = policyStr.split("\n");
+    for (int i = 0; i < policies.length; i++) {
+      String[] segments = policies[i].split("#");
+      if (segments.length != 3) {
+        showToast(String.format(getString(R.string.invalid_app_uri_policy), policies[i]));
+        return;
+      }
+      builder.addAppAndUriMapping(
+          segments[0], new Uri.Builder().authority(segments[1]).build(), segments[2]);
+    }
+    startActivityForResult(
+        KeyChain.createManageCredentialsIntent(builder.build()),
+        REQUEST_MANAGE_CREDENTIALS_REQUEST_CODE);
+  }
+
+  /**
+   * Imports a certificate to the managed profile. If the provided password failed to decrypt the
+   * given certificate, shows a try again prompt. Otherwise, shows a prompt for the certificate
+   * alias.
+   *
+   * @param intent Intent that contains the certificate data uri.
+   * @param password The password to decrypt the certificate.
+   */
+  private void importKeyCertificateFromIntent(Intent intent, String password) {
+    importKeyCertificateFromIntent(intent, password, 0 /* first try */);
+  }
+
+  /**
+   * Imports a certificate to the managed profile. If the provided decryption password is incorrect,
+   * shows a try again prompt. Otherwise, shows a prompt for the certificate alias.
+   *
+   * @param intent Intent that contains the certificate data uri.
+   * @param password The password to decrypt the certificate.
+   * @param attempts The number of times user entered incorrect password.
+   */
+  private void importKeyCertificateFromIntent(Intent intent, String password, int attempts) {
+    if (getActivity() == null || getActivity().isFinishing()) {
+      return;
+    }
+    Uri data = null;
+    if (intent != null && (data = intent.getData()) != null) {
+      // If the password is null, try to decrypt the certificate with an empty password.
+      if (password == null) {
+        password = "";
+      }
+      try {
+        CertificateUtil.PKCS12ParseInfo parseInfo =
+            CertificateUtil.parsePKCS12Certificate(
+                getActivity().getContentResolver(), data, password);
+        showPromptForKeyCertificateAlias(
+            parseInfo.privateKey, parseInfo.certificate, parseInfo.alias);
+      } catch (KeyStoreException
+          | FileNotFoundException
+          | CertificateException
+          | UnrecoverableKeyException
+          | NoSuchAlgorithmException e) {
+        Log.e(TAG, "Unable to load key", e);
+      } catch (IOException e) {
+        showPromptForCertificatePassword(intent, ++attempts);
+      } catch (ClassCastException e) {
+        showToast(R.string.not_a_key_certificate);
+      }
+    }
+  }
+
+  /**
+   * Shows a prompt to ask for the certificate password. If the certificate password is correct,
+   * import the private key and certificate.
+   *
+   * @param intent Intent that contains the certificate data uri.
+   * @param attempts The number of times user entered incorrect password.
+   */
+  private void showPromptForCertificatePassword(final Intent intent, final int attempts) {
+    if (getActivity() == null || getActivity().isFinishing()) {
+      return;
+    }
+    View passwordInputView =
+        getActivity().getLayoutInflater().inflate(R.layout.certificate_password_prompt, null);
+    final EditText input = (EditText) passwordInputView.findViewById(R.id.password_input);
+    if (attempts > 1) {
+      passwordInputView.findViewById(R.id.incorrect_password).setVisibility(View.VISIBLE);
+    }
+    new AlertDialog.Builder(getActivity())
+        .setTitle(getString(R.string.certificate_password_prompt_title))
+        .setView(passwordInputView)
+        .setPositiveButton(
+            android.R.string.ok,
+            new DialogInterface.OnClickListener() {
+              @Override
+              public void onClick(DialogInterface dialog, int which) {
+                String userPassword = input.getText().toString();
+                importKeyCertificateFromIntent(intent, userPassword, attempts);
+                dialog.dismiss();
+              }
+            })
+        .setNegativeButton(
+            android.R.string.cancel,
+            new DialogInterface.OnClickListener() {
+              @Override
+              public void onClick(DialogInterface dialog, int which) {
+                dialog.cancel();
+              }
+            })
+        .show();
+  }
+
+  /**
+   * Shows a prompt to ask for the certificate alias. This alias will be imported together with the
+   * private key and certificate.
+   *
+   * @param key The private key of a certificate.
+   * @param certificate The certificate will be imported.
+   * @param alias A name that represents the certificate in the profile.
+   */
+  private void showPromptForKeyCertificateAlias(
+      final PrivateKey key, final Certificate certificate, String alias) {
+    if (getActivity() == null
+        || getActivity().isFinishing()
+        || key == null
+        || certificate == null) {
+      return;
+    }
+    View passwordInputView =
+        getActivity().getLayoutInflater().inflate(R.layout.certificate_alias_prompt, null);
+    final EditText input = (EditText) passwordInputView.findViewById(R.id.alias_input);
+    if (!TextUtils.isEmpty(alias)) {
+      input.setText(alias);
+      input.selectAll();
+    }
+
+    final CheckBox userSelectableCheckbox =
+        passwordInputView.findViewById(R.id.alias_user_selectable);
+    userSelectableCheckbox.setEnabled(Util.SDK_INT >= VERSION_CODES.P);
+    userSelectableCheckbox.setChecked(Util.SDK_INT < VERSION_CODES.P);
+
+    new AlertDialog.Builder(getActivity())
+        .setTitle(getString(R.string.certificate_alias_prompt_title))
+        .setView(passwordInputView)
+        .setPositiveButton(
+            android.R.string.ok,
+            new DialogInterface.OnClickListener() {
+              @Override
+              public void onClick(DialogInterface dialog, int which) {
+                String alias = input.getText().toString();
+                boolean isUserSelectable = userSelectableCheckbox.isChecked();
+                if (installKeyPair(key, certificate, alias, isUserSelectable) == true) {
+                  showToast(R.string.certificate_added, alias);
+                } else {
+                  showToast(R.string.certificate_add_failed, alias);
+                }
+                dialog.dismiss();
+              }
+            })
+        .setNegativeButton(
+            android.R.string.cancel,
+            new DialogInterface.OnClickListener() {
+              @Override
+              public void onClick(DialogInterface dialog, int which) {
+                dialog.cancel();
+              }
+            })
+        .show();
+  }
+
+  /**
+   * Shows a prompt to ask for the certificate alias. A key will be generated for this alias.
+   *
+   * @param alias A name that represents the certificate in the profile.
+   */
+  private void showPromptForGeneratedKeyAlias(String alias) {
+    if (getActivity() == null || getActivity().isFinishing()) {
+      return;
+    }
+
+    View aliasNamingView =
+        getActivity().getLayoutInflater().inflate(R.layout.key_generation_prompt, null);
+    final EditText input = (EditText) aliasNamingView.findViewById(R.id.alias_input);
+    if (!TextUtils.isEmpty(alias)) {
+      input.setText(alias);
+      input.selectAll();
+    }
+
+    final CheckBox userSelectableCheckbox =
+        aliasNamingView.findViewById(R.id.alias_user_selectable);
+    userSelectableCheckbox.setChecked(Util.SDK_INT < VERSION_CODES.P);
+
+    final CheckBox ecKeyCheckbox = aliasNamingView.findViewById(R.id.generate_ec_key);
+
+    // Attestation check-boxes
+    final CheckBox includeAttestationChallengeCheckbox =
+        aliasNamingView.findViewById(R.id.include_key_attestation_challenge);
+    final CheckBox deviceBrandAttestationCheckbox =
+        aliasNamingView.findViewById(R.id.include_device_brand_attestation);
+    final CheckBox deviceSerialAttestationCheckbox =
+        aliasNamingView.findViewById(R.id.include_device_serial_in_attestation);
+    final CheckBox deviceImeiAttestationCheckbox =
+        aliasNamingView.findViewById(R.id.include_device_imei_in_attestation);
+    final CheckBox deviceMeidAttestationCheckbox =
+        aliasNamingView.findViewById(R.id.include_device_meid_in_attestation);
+    final CheckBox useStrongBoxCheckbox = aliasNamingView.findViewById(R.id.use_strongbox);
+    final CheckBox useIndividualAttestationCheckbox =
+        aliasNamingView.findViewById(R.id.use_individual_attestation);
+    useIndividualAttestationCheckbox.setEnabled(Util.SDK_INT >= VERSION_CODES.R);
+
+    // Custom Challenge input
+    final EditText customChallengeInput = aliasNamingView.findViewById(R.id.custom_challenge_input);
+
+    new AlertDialog.Builder(getActivity())
+        .setTitle(getString(R.string.certificate_alias_prompt_title))
+        .setView(aliasNamingView)
+        .setPositiveButton(
+            android.R.string.ok,
+            new DialogInterface.OnClickListener() {
+              @Override
+              public void onClick(DialogInterface dialog, int which) {
+                KeyGenerationParameters.Builder paramsBuilder =
+                    new KeyGenerationParameters.Builder();
+                paramsBuilder.setAlias(input.getText().toString());
+                paramsBuilder.setIsUserSelectable(userSelectableCheckbox.isChecked());
+
+                if (includeAttestationChallengeCheckbox.isChecked()) {
+                  String customChallenge = customChallengeInput.getText().toString().trim();
+                  byte[] decodedChallenge = Base64.decode(customChallenge, Base64.DEFAULT);
+                  paramsBuilder.setAttestationChallenge(decodedChallenge);
+                }
+
+                int idAttestationFlags = 0;
+                if (deviceBrandAttestationCheckbox.isChecked()) {
+                  idAttestationFlags |= DevicePolicyManager.ID_TYPE_BASE_INFO;
+                }
+                if (deviceSerialAttestationCheckbox.isChecked()) {
+                  idAttestationFlags |= DevicePolicyManager.ID_TYPE_SERIAL;
+                }
+                if (deviceImeiAttestationCheckbox.isChecked()) {
+                  idAttestationFlags |= DevicePolicyManager.ID_TYPE_IMEI;
+                }
+                if (deviceMeidAttestationCheckbox.isChecked()) {
+                  idAttestationFlags |= DevicePolicyManager.ID_TYPE_MEID;
+                }
+                if (useIndividualAttestationCheckbox.isChecked()) {
+                  idAttestationFlags |= DevicePolicyManager.ID_TYPE_INDIVIDUAL_ATTESTATION;
+                }
+                paramsBuilder.setIdAttestationFlags(idAttestationFlags);
+                paramsBuilder.setUseStrongBox(useStrongBoxCheckbox.isChecked());
+                paramsBuilder.setGenerateEcKey(ecKeyCheckbox.isChecked());
+
+                generateKeyPair(paramsBuilder.build());
+              }
+            })
+        .setNegativeButton(android.R.string.cancel, null)
+        .show();
+  }
+
+  /**
+   * Selects a private/public key pair to uninstall, using the system dialog to choose an alias.
+   *
+   * <p>Once the alias is chosen and deleted, a {@link Toast} shows status- success or failure.
+   */
+  @TargetApi(VERSION_CODES.N)
+  private void choosePrivateKeyForRemoval() {
+    KeyChain.choosePrivateKeyAlias(
+        getActivity(),
+        new KeyChainAliasCallback() {
+          @Override
+          public void alias(String alias) {
+            if (alias == null) {
+              // No value was chosen.
+              return;
+            }
+
+            final boolean removed = mDevicePolicyManager.removeKeyPair(mAdminComponentName, alias);
+
+            getActivity()
+                .runOnUiThread(
+                    new Runnable() {
+                      @Override
+                      public void run() {
+                        if (removed) {
+                          showToast(R.string.remove_keypair_successfully);
+                        } else {
+                          showToast(R.string.remove_keypair_fail);
+                        }
+                      }
+                    });
+          }
+        }, /* keyTypes[] */
+        null, /* issuers[] */
+        null, /* uri */
+        null, /* alias */
+        null);
+  }
+
+  /**
+   * Imports a CA certificate from the given data URI.
+   *
+   * @param intent Intent that contains the CA data URI.
+   */
+  private void importCaCertificateFromIntent(Intent intent) {
+    if (getActivity() == null || getActivity().isFinishing()) {
+      return;
+    }
+    Uri data = null;
+    if (intent != null && (data = intent.getData()) != null) {
+      ContentResolver cr = getActivity().getContentResolver();
+      boolean isCaInstalled = false;
+      try {
+        InputStream certificateInputStream = cr.openInputStream(data);
+        isCaInstalled =
+            Util.installCaCertificate(
+                certificateInputStream, mDevicePolicyManager, mAdminComponentName);
+      } catch (FileNotFoundException e) {
+        Log.e(TAG, "importCaCertificateFromIntent: ", e);
+      }
+      showToast(isCaInstalled ? R.string.install_ca_successfully : R.string.install_ca_fail);
+    }
+  }
+
+  @Override
   public void onActivityResult(int requestCode, int resultCode, Intent data) {
     super.onActivityResult(requestCode, resultCode, data);
 
@@ -1891,17 +3690,12 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
   private void showUninstallPackagePrompt() {
     final List<String> installedApps = new ArrayList<>();
     for (ResolveInfo res : getAllLauncherIntentResolversSorted()) {
-      if (!installedApps.contains(res.activityInfo.packageName)) {
-        installedApps.add(res.activityInfo.packageName);
-      }
+      if (!installedApps.contains(res.activityInfo.packageName)) installedApps.add(res.activityInfo.packageName);
     }
-    AppInfoArrayAdapter appInfoArrayAdapter =
-        new AppInfoArrayAdapter(getActivity(), R.id.pkg_name, installedApps, true);
+    AppInfoArrayAdapter adapter = new AppInfoArrayAdapter(getActivity(), R.id.pkg_name, installedApps, true);
     new AlertDialog.Builder(getActivity())
         .setTitle(getString(R.string.uninstall_packages_title))
-        .setAdapter(
-            appInfoArrayAdapter,
-            (dialog, position) -> uninstallWithTemporaryUnblock(installedApps.get(position)))
+        .setAdapter(adapter, (dialog, position) -> uninstallWithTemporaryUnblock(installedApps.get(position)))
         .show();
   }
 
@@ -1912,12 +3706,10 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
     } catch (RuntimeException e) {
       Log.w(TAG, "Could not query uninstall block for " + packageName, e);
     }
-
     if (!wasBlocked) {
       PackageInstallationUtils.uninstallPackage(getContext(), packageName);
       return;
     }
-
     try {
       mDevicePolicyManager.setUninstallBlocked(mAdminComponentName, packageName, false);
     } catch (RuntimeException e) {
@@ -1927,17 +3719,13 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
 
     final String action = getActivity().getPackageName() + ".UNINSTALL_COMPLETE_" + packageName;
     final BroadcastReceiver receiver = new BroadcastReceiver() {
-      @Override
-      public void onReceive(Context context, Intent intent) {
+      @Override public void onReceive(Context context, Intent intent) {
         try {
           mDevicePolicyManager.setUninstallBlocked(mAdminComponentName, packageName, true);
         } catch (RuntimeException e) {
           Log.e(TAG, "Failed to restore uninstall block for " + packageName, e);
         }
-        try {
-          getActivity().unregisterReceiver(this);
-        } catch (IllegalArgumentException ignored) {
-        }
+        try { getActivity().unregisterReceiver(this); } catch (IllegalArgumentException ignored) {}
       }
     };
     IntentFilter filter = new IntentFilter(action);
@@ -1946,22 +3734,17 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
     } else {
       getActivity().registerReceiver(receiver, filter);
     }
-
     try {
       PackageInstaller installer = getActivity().getPackageManager().getPackageInstaller();
       Intent callback = new Intent(action).setPackage(getActivity().getPackageName());
       PendingIntent pendingIntent = PendingIntent.getBroadcast(
-          getActivity(), packageName.hashCode(), callback, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+          getActivity(), packageName.hashCode(), callback,
+          PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
       installer.uninstall(packageName, pendingIntent.getIntentSender());
     } catch (RuntimeException e) {
-      try {
-        mDevicePolicyManager.setUninstallBlocked(mAdminComponentName, packageName, true);
-      } catch (RuntimeException ignored) {
-      }
-      try {
-        getActivity().unregisterReceiver(receiver);
-      } catch (IllegalArgumentException ignored) {
-      }
+      try { mDevicePolicyManager.setUninstallBlocked(mAdminComponentName, packageName, true); }
+      catch (RuntimeException ignored) {}
+      try { getActivity().unregisterReceiver(receiver); } catch (IllegalArgumentException ignored) {}
       showToast("Could not start uninstall. The uninstall policy was restored.", Toast.LENGTH_LONG);
     }
   }
@@ -1970,7 +3753,7 @@ public class PolicyManagementFragment extends BaseSearchablePolicyPreferenceFrag
    * Shows an alert dialog which displays a list hidden / non-hidden apps. Clicking an app in the
    * dialog enables the app.
    */
-  private void showHideAppsPrompt(final boolean showHiddenApps) {
+    private void showHideAppsPrompt(final boolean showHiddenApps) {
     Intent intent = new Intent(getActivity(), AppSelectionActivity.class);
     intent.putExtra(AppSelectionActivity.EXTRA_MODE,
         showHiddenApps ? AppSelectionActivity.MODE_UNHIDE : AppSelectionActivity.MODE_HIDE);
