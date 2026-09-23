@@ -134,6 +134,7 @@ public class AppSelectionActivity extends Activity {
     actionButton.setOnClickListener(v -> {
       if (selected.isEmpty()) return;
       Intent result = new Intent();
+      result.putExtra(EXTRA_MODE, mode);
       result.putStringArrayListExtra(EXTRA_SELECTED_PACKAGES, new ArrayList<>(selected));
       setResult(RESULT_OK, result);
       finish();
