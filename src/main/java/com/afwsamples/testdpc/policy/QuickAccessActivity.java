@@ -8,6 +8,7 @@ import android.graphics.Typeface;
 import android.view.Gravity;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import com.afwsamples.testdpc.PolicyManagementActivity;
 
@@ -43,11 +44,15 @@ public class QuickAccessActivity extends Activity {
     addButton(root, "User restrictions", KEY_RESTRICTIONS);
     addButton(root, "Factory reset protection policy", KEY_FRP);
     addButton(root, "Restrict uninstalling an app", KEY_UNINSTALL);
+    addButton(root, "Shizuku / elevated access", "shizuku");
     TextView note = new TextView(this);
     note.setText("These open the full policy editor so the change can be reviewed normally.");
     note.setTextSize(13); note.setTextColor(Color.GRAY); note.setPadding(4, 20, 4, 4);
     root.addView(note, new LinearLayout.LayoutParams(-1, -2));
-    setContentView(root);
+    ScrollView scroll = new ScrollView(this);
+    scroll.setFillViewport(true);
+    scroll.addView(root);
+    setContentView(scroll);
   }
 
   private void addButton(LinearLayout root, String label, String key) {
@@ -55,6 +60,10 @@ public class QuickAccessActivity extends Activity {
     b.setText(label); b.setAllCaps(false); b.setTextSize(16);
     b.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
     b.setOnClickListener(v -> {
+      if ("shizuku".equals(key)) {
+        startActivity(new Intent(this, ShizukuActivity.class));
+        return;
+      }
       Intent i = new Intent(this, PolicyManagementActivity.class);
       i.putExtra(PolicyManagementActivity.EXTRA_QUICK_ACTION, key);
       i.putExtra(PolicyManagementActivity.EXTRA_RETURN_TO_QUICK_ACCESS, true);
