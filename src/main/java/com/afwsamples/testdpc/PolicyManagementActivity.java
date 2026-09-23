@@ -60,6 +60,7 @@ public class PolicyManagementActivity extends DumpableActivity
   private static final String LOCK_MODE_ACTION_START = "start";
   private static final String LOCK_MODE_ACTION_STATUS = "status";
   private static final String LOCK_MODE_ACTION_STOP = "stop";
+  public static final String EXTRA_QUICK_ACTION = "quick_action";
 
   private boolean mLockTaskMode;
   private boolean mUnlocked;
@@ -83,6 +84,8 @@ public class PolicyManagementActivity extends DumpableActivity
   private void startMainContent() {
     if (isFinishing()) return;
     setContentView(R.layout.activity_main);
+    final String quickAction = getIntent().getStringExtra(EXTRA_QUICK_ACTION);
+    getIntent().removeExtra(EXTRA_QUICK_ACTION);
     if (getFragmentManager().findFragmentByTag(PolicyManagementFragment.FRAGMENT_TAG) == null) {
       getFragmentManager()
           .beginTransaction()
@@ -91,6 +94,10 @@ public class PolicyManagementActivity extends DumpableActivity
           .commit();
     }
     mSessionChanges.clear();
+    if (quickAction != null) new android.os.Handler().postDelayed(() -> {
+      Fragment f = getFragmentManager().findFragmentByTag(PolicyManagementFragment.FRAGMENT_TAG);
+      if (f instanceof PolicyManagementFragment) ((PolicyManagementFragment) f).openQuickAction(quickAction);
+    }, 300);
   }
 
   private void showProtectionScreen() {
@@ -308,6 +315,9 @@ public class PolicyManagementActivity extends DumpableActivity
           .replace(R.id.container, PolicySearchFragment.newInstance())
           .addToBackStack("search")
           .commit();
+    } else if (itemId == R.id.action_quick_access) {
+      startActivity(new android.content.Intent(this, com.afwsamples.testdpc.policy.QuickAccessActivity.class));
+      return true;
     } else if (itemId == R.id.action_app_security) {
       showPasswordSettings();
       return true;
