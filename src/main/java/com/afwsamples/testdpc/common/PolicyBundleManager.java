@@ -147,10 +147,17 @@ public final class PolicyBundleManager {
         boolean current;
         if (type == 1) {
           current = dpm.isApplicationHidden(admin, pkg);
-          if (current != want) dpm.setApplicationHidden(admin, pkg, want);
+          if (current != want && !dpm.setApplicationHidden(admin, pkg, want)) {
+            throw new IllegalStateException("DPC rejected hidden-state change");
+          }
         } else if (type == 2) {
           current = dpm.isPackageSuspended(admin, pkg);
-          if (current != want) dpm.setPackagesSuspended(admin, new String[]{pkg}, want);
+          if (current != want) {
+            String[] failed = dpm.setPackagesSuspended(admin, new String[]{pkg}, want);
+            if (failed != null && failed.length > 0) {
+              throw new IllegalStateException("DPC rejected suspension change");
+            }
+          }
         } else {
           current = dpm.isUninstallBlocked(admin, pkg);
           if (current != want) dpm.setUninstallBlocked(admin, pkg, want);
