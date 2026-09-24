@@ -639,7 +639,6 @@ public class PolicyManagementActivity extends DumpableActivity
   public void onBackPressed() {
     if (confirmLeaving()) return;
     if (mReturnToQuickAccess) {
-      sAuthenticatedSession = true;
       finish();
       return;
     }
