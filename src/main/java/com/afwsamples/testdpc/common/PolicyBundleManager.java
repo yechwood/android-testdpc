@@ -145,6 +145,7 @@ public final class PolicyBundleManager {
   private static ImportResult applyPackageList(Context context, DevicePolicyManager dpm,
       ComponentName admin, JSONArray desired, int type) {
     ImportResult result = new ImportResult();
+    if (type == 2 && Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return result;
     java.util.HashSet<String> set = new java.util.HashSet<>();
     if (desired != null) {
       for (int i = 0; i < desired.length(); i++) set.add(desired.optString(i));
