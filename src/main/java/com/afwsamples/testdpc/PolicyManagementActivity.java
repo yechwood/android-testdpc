@@ -82,7 +82,6 @@ public class PolicyManagementActivity extends DumpableActivity
   private static final String EXTRA_AUTH_SESSION_TOKEN = "auth_session_token";
   private static final Set<String> AUTHORIZED_TOKENS =
       Collections.synchronizedSet(new HashSet<String>());
-  private static boolean sAuthenticatedSession;
 
   /** Authorizes one specific in-app Quick Access transition. */
   public static void authorizeQuickAccessIntent(Intent intent) {
@@ -118,7 +117,6 @@ public class PolicyManagementActivity extends DumpableActivity
       showProtectionScreen();
     } else {
       mUnlocked = true;
-      sAuthenticatedSession = true;
       startMainContent();
     }
   }
@@ -261,7 +259,6 @@ public class PolicyManagementActivity extends DumpableActivity
           unlock.setText("Unlock");
           if (valid) {
             mUnlocked = true;
-            sAuthenticatedSession = true;
             startMainContent();
           } else {
             input.setError("Incorrect password");
@@ -282,7 +279,6 @@ public class PolicyManagementActivity extends DumpableActivity
   }
 
   public void finishForQuickAccessReturn() {
-    sAuthenticatedSession = true;
     mSessionChanges.clear();
     mLeavingWithPrompt = false;
     finish();
@@ -303,7 +299,6 @@ public class PolicyManagementActivity extends DumpableActivity
         .setPositiveButton("Leave", (d, w) -> {
           mSessionChanges.clear();
           mLeavingWithPrompt = false;
-          sAuthenticatedSession = false;
           finish();
         })
         .setOnCancelListener(d -> mLeavingWithPrompt = false)
@@ -462,8 +457,8 @@ public class PolicyManagementActivity extends DumpableActivity
     final int dp = (int) getResources().getDisplayMetrics().density;
     String otpUri = "otpauth://totp/TestDPC?secret=" + secret + "&issuer=Test%20DPC";
     try {
-      int available = Math.max(160 * dp, getResources().getDisplayMetrics().widthPixels - 72 * dp);
-      int size = Math.min(280 * dp, available);
+      int maxSize = Math.max(96, getResources().getDisplayMetrics().widthPixels - 48 * dp);
+      int size = Math.min(280 * dp, maxSize);
       BitMatrix matrix = new QRCodeWriter().encode(otpUri, BarcodeFormat.QR_CODE, size, size);
       int[] pixels = new int[size * size];
       for (int y = 0; y < size; y++) {
