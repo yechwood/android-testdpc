@@ -199,6 +199,12 @@ public class AppSelectionActivity extends Activity {
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
         appFlags |= PackageManager.MATCH_DISABLED_COMPONENTS;
       }
+      // Hidden applications can disappear from the normal "installed" view.
+      // The UNHIDE picker must explicitly ask PackageManager for packages that
+      // are not currently available, otherwise there is nothing to unhide.
+      if (mode == MODE_UNHIDE) {
+        appFlags |= PackageManager.MATCH_UNINSTALLED_PACKAGES;
+      }
       List<ApplicationInfo> installed = packageManager.getInstalledApplications(appFlags);
       for (ApplicationInfo info : installed) {
         boolean include;
