@@ -54,7 +54,11 @@ public class QuickAccessActivity extends Activity {
     setContentView(scroll);
   }
 
-  private int dp(int value) {\n    return (int) (value * getResources().getDisplayMetrics().density + 0.5f);\n  }\n\n  private void addButton(LinearLayout root, String label, String key) {
+  private int dp(int value) {
+    return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+  }
+
+  private void addButton(LinearLayout root, String label, String key) {
     Button b = new Button(this);
     b.setText(label); b.setAllCaps(false); b.setTextSize(16);
     b.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
