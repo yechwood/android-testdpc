@@ -121,9 +121,9 @@ public final class PolicyBundleManager {
           .append(failureCount).append(" failed.");
       int limit = Math.min(5, failures.size());
       if (limit > 0) {
-        message.append("\\n\\nFailed packages:");
-        for (int i = 0; i < limit; i++) message.append("\\n• ").append(failures.get(i));
-        if (failures.size() > limit) message.append("\\n…and ").append(failures.size() - limit).append(" more.");
+        message.append("\n\nFailed packages:");
+        for (int i = 0; i < limit; i++) message.append("\n• ").append(failures.get(i));
+        if (failures.size() > limit) message.append("\n…and ").append(failures.size() - limit).append(" more.");
       }
       return message.toString();
     }
@@ -144,13 +144,18 @@ public final class PolicyBundleManager {
       String pkg = app.packageName;
       boolean want = set.contains(pkg);
       try {
+        boolean current;
         if (type == 1) {
-          dpm.setApplicationHidden(admin, pkg, want);
+          current = dpm.isApplicationHidden(admin, pkg);
+          if (current != want) dpm.setApplicationHidden(admin, pkg, want);
         } else if (type == 2) {
-          dpm.setPackagesSuspended(admin, new String[]{pkg}, want);
+          current = dpm.isPackageSuspended(admin, pkg);
+          if (current != want) dpm.setPackagesSuspended(admin, new String[]{pkg}, want);
         } else {
-          dpm.setUninstallBlocked(admin, pkg, want);
+          current = dpm.isUninstallBlocked(admin, pkg);
+          if (current != want) dpm.setUninstallBlocked(admin, pkg, want);
         }
+        if (current != want) result.successCount++;
       } catch (Exception e) {
         result.failureCount++;
         if (result.failures.size() < 50) result.failures.add(pkg + ": " + e.getClass().getSimpleName());
