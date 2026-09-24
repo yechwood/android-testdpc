@@ -27,15 +27,14 @@ public class QuickAccessActivity extends Activity {
     LinearLayout root = new LinearLayout(this);
     root.setOrientation(LinearLayout.VERTICAL);
     root.setBackgroundColor(Color.WHITE);
-    int dp = (int) getResources().getDisplayMetrics().density;
-    root.setPadding(24 * dp, 24 * dp, 24 * dp, 24 * dp);
+    root.setPadding(dp(24), dp(24), dp(24), dp(24));
     TextView title = new TextView(this);
     title.setText("Quick access"); title.setTextSize(28);
     title.setTypeface(null, Typeface.BOLD); title.setTextColor(Color.DKGRAY);
-    root.addView(title, new LinearLayout.LayoutParams(-1, 72 * dp));
+    root.addView(title, new LinearLayout.LayoutParams(-1, dp(72)));
     TextView sub = new TextView(this);
     sub.setText("Your most-used device policies"); sub.setTextSize(15); sub.setTextColor(Color.GRAY);
-    root.addView(sub, new LinearLayout.LayoutParams(-1, 48 * dp));
+    root.addView(sub, new LinearLayout.LayoutParams(-1, dp(48)));
     addButton(root, "Hide apps", KEY_HIDE);
     addButton(root, "Unhide apps", KEY_UNHIDE);
     addButton(root, "Suspend apps", KEY_SUSPEND);
@@ -47,7 +46,7 @@ public class QuickAccessActivity extends Activity {
     addButton(root, "Shizuku / elevated access", "shizuku");
     TextView note = new TextView(this);
     note.setText("These open the full policy editor so the change can be reviewed normally.");
-    note.setTextSize(13); note.setTextColor(Color.GRAY); note.setPadding(4 * dp, 20 * dp, 4 * dp, 4 * dp);
+    note.setTextSize(13); note.setTextColor(Color.GRAY); note.setPadding(dp(4), dp(20), dp(4), dp(4));
     root.addView(note, new LinearLayout.LayoutParams(-1, -2));
     ScrollView scroll = new ScrollView(this);
     scroll.setFillViewport(true);
@@ -55,7 +54,7 @@ public class QuickAccessActivity extends Activity {
     setContentView(scroll);
   }
 
-  private void addButton(LinearLayout root, String label, String key) {
+  private int dp(int value) {\n    return (int) (value * getResources().getDisplayMetrics().density + 0.5f);\n  }\n\n  private void addButton(LinearLayout root, String label, String key) {
     Button b = new Button(this);
     b.setText(label); b.setAllCaps(false); b.setTextSize(16);
     b.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
@@ -70,7 +69,7 @@ public class QuickAccessActivity extends Activity {
       PolicyManagementActivity.authorizeQuickAccessIntent(i);
       startActivity(i);
     });
-    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, 58 * dp);
-    lp.bottomMargin = 8 * dp; root.addView(b, lp);
+    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(58));
+    lp.bottomMargin = dp(8); root.addView(b, lp);
   }
 }
