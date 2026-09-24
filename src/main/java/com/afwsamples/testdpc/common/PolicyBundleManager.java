@@ -35,13 +35,6 @@ public final class PolicyBundleManager {
     }
     root.put("preferences", values);
 
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N && root.has("suspendedPackages")) {
-      JSONArray suspended = root.optJSONArray("suspendedPackages");
-      if (suspended != null && suspended.length() > 0) {
-        throw new IllegalArgumentException("This policy profile contains app suspension settings, which require Android 7.0 or later.");
-      }
-    }
-
     DevicePolicyManager dpm = (DevicePolicyManager) context.getSystemService(Context.DEVICE_POLICY_SERVICE);
     ComponentName admin = new ComponentName(context, com.afwsamples.testdpc.DeviceAdminReceiver.class);
     JSONArray hidden = new JSONArray();
@@ -51,9 +44,11 @@ public final class PolicyBundleManager {
         android.content.pm.PackageManager.MATCH_ALL)) {
       String pkg = app.packageName;
       if (dpm.isApplicationHidden(admin, pkg)) hidden.put(pkg);
-      try {
-        if (dpm.isPackageSuspended(admin, pkg)) suspended.put(pkg);
-      } catch (Exception ignored) {}
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+        try {
+          if (dpm.isPackageSuspended(admin, pkg)) suspended.put(pkg);
+        } catch (Exception ignored) {}
+      }
       try {
         if (dpm.isUninstallBlocked(admin, pkg)) blockedUninstall.put(pkg);
       } catch (Exception ignored) {}
@@ -74,6 +69,13 @@ public final class PolicyBundleManager {
     }
     if (root.optInt("version", 0) != 1) {
       throw new IllegalArgumentException("Unsupported policy profile version");
+    }
+
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+      JSONArray suspended = root.optJSONArray("suspendedPackages");
+      if (suspended != null && suspended.length() > 0) {
+        throw new IllegalArgumentException("This policy profile contains app suspension settings, which require Android 7.0 or later.");
+      }
     }
 
     SharedPreferences prefs = android.preference.PreferenceManager.getDefaultSharedPreferences(context);
