@@ -5,6 +5,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
+import android.os.Build;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Map;
@@ -33,6 +34,13 @@ public final class PolicyBundleManager {
       }
     }
     root.put("preferences", values);
+
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N && root.has("suspendedPackages")) {
+      JSONArray suspended = root.optJSONArray("suspendedPackages");
+      if (suspended != null && suspended.length() > 0) {
+        throw new IllegalArgumentException("This policy profile contains app suspension settings, which require Android 7.0 or later.");
+      }
+    }
 
     DevicePolicyManager dpm = (DevicePolicyManager) context.getSystemService(Context.DEVICE_POLICY_SERVICE);
     ComponentName admin = new ComponentName(context, com.afwsamples.testdpc.DeviceAdminReceiver.class);
