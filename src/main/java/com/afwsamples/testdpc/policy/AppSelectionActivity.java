@@ -195,8 +195,7 @@ public class AppSelectionActivity extends Activity {
         if (r.activityInfo != null) launcherPackages.add(r.activityInfo.packageName);
       }
 
-      List<ApplicationInfo> installed =
-          int appFlags = 0;
+      int appFlags = 0;
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
         appFlags |= PackageManager.MATCH_DISABLED_COMPONENTS;
       }
