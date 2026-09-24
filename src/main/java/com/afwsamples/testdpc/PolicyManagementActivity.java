@@ -595,16 +595,21 @@ public class PolicyManagementActivity extends DumpableActivity
         try (java.io.OutputStream out = getContentResolver().openOutputStream(data.getData())) {
           PolicyBundleManager.write(this, out);
         }
-        recordPolicyChange("Saved portable policy profile");
         new AlertDialog.Builder(this).setTitle("Policy saved")
             .setMessage("The policy profile was saved. You can move this file to another device and use Load policy.")
             .setPositiveButton("OK", null).show();
       } else if (requestCode == POLICY_IMPORT_REQUEST) {
+        PolicyBundleManager.ImportResult importResult;
         try (java.io.InputStream in = getContentResolver().openInputStream(data.getData())) {
-          PolicyBundleManager.importInto(this, in);
+          importResult = PolicyBundleManager.importInto(this, in);
         }
         recordPolicyChange("Loaded portable policy profile");
-        recreate();
+        new AlertDialog.Builder(this)
+            .setTitle("Policy loaded")
+            .setMessage("The policy profile was applied successfully. " + importResult.getSuccessCount()
+                + " package policy changes were made.")
+            .setPositiveButton("OK", (d, w) -> recreate())
+            .show();
       }
     } catch (Exception e) {
       Log.e(TAG, "Policy profile operation failed", e);
