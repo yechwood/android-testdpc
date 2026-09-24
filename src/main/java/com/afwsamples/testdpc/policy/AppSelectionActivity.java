@@ -93,6 +93,12 @@ public class AppSelectionActivity extends Activity {
     devicePolicyManager = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
     admin = new ComponentName(this, DeviceAdminReceiver.class);
     mode = getIntent().getIntExtra(EXTRA_MODE, MODE_HIDE);
+    if ((mode == MODE_SUSPEND || mode == MODE_UNSUSPEND)
+        && Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+      Toast.makeText(this, "App suspension requires Android 7.0 or later.", Toast.LENGTH_LONG).show();
+      finish();
+      return;
+    }
     buildLoadingUi();
     loadAppsAsync();
   }
@@ -372,6 +378,7 @@ public class AppSelectionActivity extends Activity {
   }
 
   private boolean isPackageSuspended(String packageName) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return false;
     try {
       return devicePolicyManager.isPackageSuspended(admin, packageName);
     } catch (PackageManager.NameNotFoundException e) {
