@@ -58,7 +58,7 @@ public final class PolicyBundleManager {
     out.write(root.toString(2).getBytes(java.nio.charset.StandardCharsets.UTF_8));
   }
 
-  public static void importInto(Context context, InputStream in) throws Exception {
+  public static ImportResult importInto(Context context, InputStream in) throws Exception {
     byte[] data = readAll(in);
     JSONObject root = new JSONObject(new String(data, java.nio.charset.StandardCharsets.UTF_8));
     if (!"TestDPC Policy Profile".equals(root.optString("format"))) {
@@ -69,7 +69,7 @@ public final class PolicyBundleManager {
     }
 
     SharedPreferences prefs = android.preference.PreferenceManager.getDefaultSharedPreferences(context);
-    SharedPreferences.Editor editor = prefs.edit().clear();
+    SharedPreferences.Editor editor = prefs.edit();
     JSONObject values = root.optJSONObject("preferences");
     if (values != null) {
       JSONArray names = values.names();
@@ -89,17 +89,52 @@ public final class PolicyBundleManager {
         }
       }
     }
-    editor.apply();
-
     DevicePolicyManager dpm = (DevicePolicyManager) context.getSystemService(Context.DEVICE_POLICY_SERVICE);
     ComponentName admin = new ComponentName(context, com.afwsamples.testdpc.DeviceAdminReceiver.class);
-    applyPackageList(context, dpm, admin, root.optJSONArray("hiddenPackages"), 1);
-    applyPackageList(context, dpm, admin, root.optJSONArray("suspendedPackages"), 2);
-    applyPackageList(context, dpm, admin, root.optJSONArray("blockedUninstallPackages"), 3);
+    ImportResult result = new ImportResult();
+    result.add(applyPackageList(context, dpm, admin, root.optJSONArray("hiddenPackages"), 1));
+    result.add(applyPackageList(context, dpm, admin, root.optJSONArray("suspendedPackages"), 2));
+    result.add(applyPackageList(context, dpm, admin, root.optJSONArray("blockedUninstallPackages"), 3));
+    if (!result.isSuccessful()) {
+      throw new IllegalStateException(result.toMessage());
+    }
+    editor.apply();
+    return result;
   }
 
-  private static void applyPackageList(Context context, DevicePolicyManager dpm,
+  public static final class ImportResult {
+    private int successCount;
+    private int failureCount;
+    private final java.util.ArrayList<String> failures = new java.util.ArrayList<>();
+
+    private void add(ImportResult other) {
+      successCount += other.successCount;
+      failureCount += other.failureCount;
+      failures.addAll(other.failures);
+    }
+
+    private boolean isSuccessful() { return failureCount == 0; }
+
+    public String toMessage() {
+      StringBuilder message = new StringBuilder("The profile could not be applied completely. ");
+      message.append(successCount).append(" package operations succeeded and ")
+          .append(failureCount).append(" failed.");
+      int limit = Math.min(5, failures.size());
+      if (limit > 0) {
+        message.append("\\n\\nFailed packages:");
+        for (int i = 0; i < limit; i++) message.append("\\n• ").append(failures.get(i));
+        if (failures.size() > limit) message.append("\\n…and ").append(failures.size() - limit).append(" more.");
+      }
+      return message.toString();
+    }
+
+    public int getSuccessCount() { return successCount; }
+    public int getFailureCount() { return failureCount; }
+  }
+
+  private static ImportResult applyPackageList(Context context, DevicePolicyManager dpm,
       ComponentName admin, JSONArray desired, int type) {
+    ImportResult result = new ImportResult();
     java.util.HashSet<String> set = new java.util.HashSet<>();
     if (desired != null) {
       for (int i = 0; i < desired.length(); i++) set.add(desired.optString(i));
@@ -116,8 +151,12 @@ public final class PolicyBundleManager {
         } else {
           dpm.setUninstallBlocked(admin, pkg, want);
         }
-      } catch (Exception ignored) {}
+      } catch (Exception e) {
+        result.failureCount++;
+        if (result.failures.size() < 50) result.failures.add(pkg + ": " + e.getClass().getSimpleName());
+      }
     }
+    return result;
   }
 
   private static byte[] readAll(InputStream in) throws Exception {
