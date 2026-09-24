@@ -52,6 +52,10 @@ import com.afwsamples.testdpc.policy.PolicyManagementFragment;
 import com.afwsamples.testdpc.search.PolicySearchFragment;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.WriterException;
 import com.google.zxing.common.BitMatrix;
@@ -71,13 +75,26 @@ public class PolicyManagementActivity extends DumpableActivity
   private static final String LOCK_MODE_ACTION_STATUS = "status";
   private static final String LOCK_MODE_ACTION_STOP = "stop";
   public static final String EXTRA_QUICK_ACTION = "quick_action";
-  public static final String EXTRA_SKIP_PASSWORD = "skip_password";
+  /** Legacy extra retained for compatibility; it is deliberately ignored for authentication. */
+  @Deprecated public static final String EXTRA_SKIP_PASSWORD = "skip_password";
   public static final String EXTRA_RETURN_TO_QUICK_ACCESS = "return_to_quick_access";
+  private static final String EXTRA_AUTH_SESSION_TOKEN = "auth_session_token";
+  private static final Set<String> AUTHORIZED_TOKENS =
+      Collections.synchronizedSet(new HashSet<String>());
   private static boolean sAuthenticatedSession;
 
-  /** Called only by the in-app Quick Access screen after the protected main UI is open. */
-  public static void markAuthenticatedSession() {
-    sAuthenticatedSession = true;
+  /** Authorizes one specific in-app Quick Access transition. */
+  public static void authorizeQuickAccessIntent(Intent intent) {
+    String token = UUID.randomUUID().toString();
+    AUTHORIZED_TOKENS.add(token);
+    intent.putExtra(EXTRA_AUTH_SESSION_TOKEN, token);
+  }
+
+  private static boolean consumeAuthorizedToken(Intent intent) {
+    String token = intent.getStringExtra(EXTRA_AUTH_SESSION_TOKEN);
+    if (TextUtils.isEmpty(token)) return false;
+    intent.removeExtra(EXTRA_AUTH_SESSION_TOKEN);
+    return AUTHORIZED_TOKENS.remove(token);
   }
   private static final int POLICY_EXPORT_REQUEST = 9901;
   private static final int POLICY_IMPORT_REQUEST = 9902;
@@ -94,7 +111,7 @@ public class PolicyManagementActivity extends DumpableActivity
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     getFragmentManager().addOnBackStackChangedListener(this);
-    boolean skipPassword = getIntent().getBooleanExtra(EXTRA_SKIP_PASSWORD, false) && sAuthenticatedSession;
+    boolean skipPassword = consumeAuthorizedToken(getIntent());
     mReturnToQuickAccess = getIntent().getBooleanExtra(EXTRA_RETURN_TO_QUICK_ACCESS, false);
     if (hasAnyLoginMethod() && !skipPassword) {
       showProtectionScreen();
@@ -326,11 +343,31 @@ public class PolicyManagementActivity extends DumpableActivity
 
   private void showTotpSettings() {
     if (!AppSecurity.hasTotp(this)) {
-      String secret = AppSecurity.enableTotp(this);
-      showTotpSecret(secret);
+      new AlertDialog.Builder(this)
+          .setTitle("One-time code")
+          .setMessage("Use an authenticator app as an additional way to unlock Test DPC. Opening this screen will not enable it until you choose Enable.")
+          .setPositiveButton("Enable", (d, w) -> {
+            String secret = AppSecurity.enableTotp(this);
+            if (TextUtils.isEmpty(secret)) {
+              new AlertDialog.Builder(this)
+                  .setMessage("Could not create a secure authenticator secret on this device.")
+                  .setPositiveButton("OK", null)
+                  .show();
+            } else {
+              showTotpSecret(secret);
+            }
+          })
+          .setNegativeButton("Cancel", null)
+          .show();
       return;
     }
-    showTotpSecret(AppSecurity.getTotpSecret(this));
+    String secret = AppSecurity.getTotpSecret(this);
+    if (TextUtils.isEmpty(secret)) {
+      AppSecurity.disableTotp(this);
+      showTotpSettings();
+      return;
+    }
+    showTotpSecret(secret);
   }
 
   private void copyTotpSecret(String secret) {
@@ -384,21 +421,38 @@ public class PolicyManagementActivity extends DumpableActivity
         .setTitle("Authenticator setup")
         .setView(card)
         .setPositiveButton("Done", null)
-        .setNeutralButton(AppSecurity.hasTotp(this) ? "Regenerate" : "Disable", null)
-        .setNegativeButton("Close", null)
+        .setNeutralButton("Regenerate", null)
+        .setNegativeButton("Disable", null)
         .create();
     dialog.setOnShowListener(d -> {
-      Button neutral = dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
-      neutral.setOnClickListener(v -> {
-        if (AppSecurity.hasTotp(this)) {
-          String next = AppSecurity.enableTotp(this);
-          dialog.dismiss();
-          showTotpSecret(next);
-        } else {
-          AppSecurity.disableTotp(this);
-          dialog.dismiss();
-        }
-      });
+      Button regenerate = dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
+      regenerate.setOnClickListener(v -> new AlertDialog.Builder(this)
+          .setTitle("Regenerate authenticator secret?")
+          .setMessage("The current secret will stop working immediately. You will need to scan or copy the new secret.")
+          .setNegativeButton("Cancel", null)
+          .setPositiveButton("Regenerate", (confirm, which) -> {
+            String next = AppSecurity.enableTotp(this);
+            if (TextUtils.isEmpty(next)) {
+              new AlertDialog.Builder(this)
+                  .setMessage("Could not create a new secure authenticator secret.")
+                  .setPositiveButton("OK", null)
+                  .show();
+            } else {
+              dialog.dismiss();
+              showTotpSecret(next);
+            }
+          })
+          .show());
+      Button disable = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
+      disable.setOnClickListener(v -> new AlertDialog.Builder(this)
+          .setTitle("Disable one-time code?")
+          .setMessage("Authenticator codes will no longer be accepted for unlocking Test DPC.")
+          .setNegativeButton("Cancel", null)
+          .setPositiveButton("Disable", (confirm, which) -> {
+            AppSecurity.disableTotp(this);
+            dialog.dismiss();
+          })
+          .show());
     });
     dialog.show();
   }
@@ -407,8 +461,8 @@ public class PolicyManagementActivity extends DumpableActivity
     final int dp = (int) getResources().getDisplayMetrics().density;
     String otpUri = "otpauth://totp/TestDPC?secret=" + secret + "&issuer=Test%20DPC";
     try {
-      int size = Math.min((int) (280 * dp), getResources().getDisplayMetrics().widthPixels - 72 * dp);
-      size = Math.max(size, 180 * dp);
+      int available = Math.max(160 * dp, getResources().getDisplayMetrics().widthPixels - 72 * dp);
+      int size = Math.min(280 * dp, available);
       BitMatrix matrix = new QRCodeWriter().encode(otpUri, BarcodeFormat.QR_CODE, size, size);
       int[] pixels = new int[size * size];
       for (int y = 0; y < size; y++) {
