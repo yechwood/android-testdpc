@@ -24,18 +24,18 @@ public class QuickAccessActivity extends Activity {
 
   @Override public void onCreate(Bundle b) {
     super.onCreate(b);
-    PolicyManagementActivity.markAuthenticatedSession();
     LinearLayout root = new LinearLayout(this);
     root.setOrientation(LinearLayout.VERTICAL);
     root.setBackgroundColor(Color.WHITE);
-    root.setPadding(24, 24, 24, 24);
+    int dp = (int) getResources().getDisplayMetrics().density;
+    root.setPadding(24 * dp, 24 * dp, 24 * dp, 24 * dp);
     TextView title = new TextView(this);
     title.setText("Quick access"); title.setTextSize(28);
     title.setTypeface(null, Typeface.BOLD); title.setTextColor(Color.DKGRAY);
-    root.addView(title, new LinearLayout.LayoutParams(-1, 72));
+    root.addView(title, new LinearLayout.LayoutParams(-1, 72 * dp));
     TextView sub = new TextView(this);
     sub.setText("Your most-used device policies"); sub.setTextSize(15); sub.setTextColor(Color.GRAY);
-    root.addView(sub, new LinearLayout.LayoutParams(-1, 48));
+    root.addView(sub, new LinearLayout.LayoutParams(-1, 48 * dp));
     addButton(root, "Hide apps", KEY_HIDE);
     addButton(root, "Unhide apps", KEY_UNHIDE);
     addButton(root, "Suspend apps", KEY_SUSPEND);
@@ -47,7 +47,7 @@ public class QuickAccessActivity extends Activity {
     addButton(root, "Shizuku / elevated access", "shizuku");
     TextView note = new TextView(this);
     note.setText("These open the full policy editor so the change can be reviewed normally.");
-    note.setTextSize(13); note.setTextColor(Color.GRAY); note.setPadding(4, 20, 4, 4);
+    note.setTextSize(13); note.setTextColor(Color.GRAY); note.setPadding(4 * dp, 20 * dp, 4 * dp, 4 * dp);
     root.addView(note, new LinearLayout.LayoutParams(-1, -2));
     ScrollView scroll = new ScrollView(this);
     scroll.setFillViewport(true);
@@ -67,10 +67,10 @@ public class QuickAccessActivity extends Activity {
       Intent i = new Intent(this, PolicyManagementActivity.class);
       i.putExtra(PolicyManagementActivity.EXTRA_QUICK_ACTION, key);
       i.putExtra(PolicyManagementActivity.EXTRA_RETURN_TO_QUICK_ACCESS, true);
-      i.putExtra(PolicyManagementActivity.EXTRA_SKIP_PASSWORD, true);
+      PolicyManagementActivity.authorizeQuickAccessIntent(i);
       startActivity(i);
     });
-    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, 58);
-    lp.bottomMargin = 8; root.addView(b, lp);
+    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, 58 * dp);
+    lp.bottomMargin = 8 * dp; root.addView(b, lp);
   }
 }
