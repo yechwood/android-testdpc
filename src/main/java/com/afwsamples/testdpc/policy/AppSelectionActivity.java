@@ -13,6 +13,7 @@ import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Build;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -58,6 +59,10 @@ public class AppSelectionActivity extends Activity {
   private android.widget.Button actionButton;
   private int mode;
 
+  private int dp(int value) {
+    return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+  }
+
   private static final class AppItem {
     final String packageName;
     final String label;
@@ -88,6 +93,12 @@ public class AppSelectionActivity extends Activity {
     devicePolicyManager = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
     admin = new ComponentName(this, DeviceAdminReceiver.class);
     mode = getIntent().getIntExtra(EXTRA_MODE, MODE_HIDE);
+    if ((mode == MODE_SUSPEND || mode == MODE_UNSUSPEND)
+        && Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+      Toast.makeText(this, "App suspension requires Android 7.0 or later.", Toast.LENGTH_LONG).show();
+      finish();
+      return;
+    }
     buildLoadingUi();
     loadAppsAsync();
   }
@@ -102,23 +113,23 @@ public class AppSelectionActivity extends Activity {
     title.setTextSize(22);
     title.setTextColor(Color.DKGRAY);
     title.setGravity(Gravity.CENTER_VERTICAL);
-    title.setPadding(24, 12, 24, 8);
-    root.addView(title, new LinearLayout.LayoutParams(-1, 60));
+    title.setPadding(dp(24), dp(12), dp(24), dp(8));
+    root.addView(title, new LinearLayout.LayoutParams(-1, dp(60)));
 
     search = new EditText(this);
     search.setSingleLine(true);
     search.setHint("Search apps or package names");
-    search.setPadding(24, 0, 24, 0);
-    root.addView(search, new LinearLayout.LayoutParams(-1, 58));
+    search.setPadding(dp(24), 0, dp(24), 0);
+    root.addView(search, new LinearLayout.LayoutParams(-1, dp(58)));
 
     status = new TextView(this);
     status.setText("Loading apps…");
     status.setGravity(Gravity.CENTER);
     status.setTextSize(15);
-    root.addView(status, new LinearLayout.LayoutParams(-1, 44));
+    root.addView(status, new LinearLayout.LayoutParams(-1, dp(44)));
 
     ProgressBar progress = new ProgressBar(this);
-    root.addView(progress, new LinearLayout.LayoutParams(-1, 4));
+    root.addView(progress, new LinearLayout.LayoutParams(-1, dp(4)));
 
     listView = new ListView(this);
     listView.setDividerHeight(1);
@@ -126,21 +137,21 @@ public class AppSelectionActivity extends Activity {
 
     LinearLayout bottom = new LinearLayout(this);
     bottom.setGravity(Gravity.CENTER_VERTICAL);
-    bottom.setPadding(16, 8, 16, 8);
+    bottom.setPadding(dp(16), dp(8), dp(16), dp(8));
     selectedText = new TextView(this);
     selectedText.setText("0 selected");
     selectedText.setTextSize(15);
-    bottom.addView(selectedText, new LinearLayout.LayoutParams(0, 56, 1f));
+    bottom.addView(selectedText, new LinearLayout.LayoutParams(0, dp(56), 1f));
 
     selectAllButton = new android.widget.Button(this);
     selectAllButton.setText("Select all");
     selectAllButton.setAllCaps(false);
     selectAllButton.setTextSize(14);
     selectAllButton.setMinWidth(0);
-    selectAllButton.setPadding(2, 0, 2, 0);
-    LinearLayout.LayoutParams selectLp = new LinearLayout.LayoutParams(0, 56, 1.15f);
-    selectLp.leftMargin = 4;
-    selectLp.rightMargin = 4;
+    selectAllButton.setPadding(dp(2), 0, dp(2), 0);
+    LinearLayout.LayoutParams selectLp = new LinearLayout.LayoutParams(0, dp(56), 1.15f);
+    selectLp.leftMargin = dp(4);
+    selectLp.rightMargin = dp(4);
     bottom.addView(selectAllButton, selectLp);
 
     actionButton = new android.widget.Button(this);
@@ -148,11 +159,11 @@ public class AppSelectionActivity extends Activity {
     actionButton.setAllCaps(false);
     actionButton.setTextSize(14);
     actionButton.setMinWidth(0);
-    actionButton.setPadding(2, 0, 2, 0);
+    actionButton.setPadding(dp(2), 0, dp(2), 0);
     actionButton.setEnabled(false);
-    LinearLayout.LayoutParams actionLp = new LinearLayout.LayoutParams(0, 56, 1f);
+    LinearLayout.LayoutParams actionLp = new LinearLayout.LayoutParams(0, dp(56), 1f);
     bottom.addView(actionButton, actionLp);
-    root.addView(bottom, new LinearLayout.LayoutParams(-1, 72));
+    root.addView(bottom, new LinearLayout.LayoutParams(-1, dp(72)));
 
     search.addTextChangedListener(new android.text.TextWatcher() {
       public void beforeTextChanged(CharSequence s, int st, int c, int a) {}
@@ -184,8 +195,11 @@ public class AppSelectionActivity extends Activity {
         if (r.activityInfo != null) launcherPackages.add(r.activityInfo.packageName);
       }
 
-      List<ApplicationInfo> installed =
-          packageManager.getInstalledApplications(PackageManager.MATCH_UNINSTALLED_PACKAGES | PackageManager.MATCH_DISABLED_COMPONENTS);
+      int appFlags = 0;
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+        appFlags |= PackageManager.MATCH_DISABLED_COMPONENTS;
+      }
+      List<ApplicationInfo> installed = packageManager.getInstalledApplications(appFlags);
       for (ApplicationInfo info : installed) {
         boolean include;
         if (mode == MODE_HIDE) {
@@ -290,7 +304,7 @@ public class AppSelectionActivity extends Activity {
         header.setTextSize(14);
         header.setTextColor(Color.DKGRAY);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setPadding(20, 8, 20, 8);
+        header.setPadding(dp(20), dp(8), dp(20), dp(8));
         header.setBackgroundColor(0xffeeeeee);
         return header;
       }
@@ -298,13 +312,13 @@ public class AppSelectionActivity extends Activity {
       LinearLayout row = new LinearLayout(AppSelectionActivity.this);
       row.setOrientation(LinearLayout.HORIZONTAL);
       row.setGravity(Gravity.CENTER_VERTICAL);
-      row.setPadding(18, 12, 12, 12);
+      row.setPadding(dp(18), dp(12), dp(12), dp(12));
       ImageView icon = new ImageView(AppSelectionActivity.this);
       icon.setImageDrawable(item.icon);
-      row.addView(icon, new LinearLayout.LayoutParams(64, 64));
+      row.addView(icon, new LinearLayout.LayoutParams(dp(64), dp(64)));
       LinearLayout textBox = new LinearLayout(AppSelectionActivity.this);
       textBox.setOrientation(LinearLayout.VERTICAL);
-      textBox.setPadding(18, 0, 8, 0);
+      textBox.setPadding(dp(18), 0, dp(8), 0);
       row.addView(textBox, new LinearLayout.LayoutParams(0, -2, 1f));
       TextView name = new TextView(AppSelectionActivity.this);
       name.setText(item.label); name.setTextSize(18); name.setTextColor(Color.DKGRAY);
@@ -363,6 +377,7 @@ public class AppSelectionActivity extends Activity {
   }
 
   private boolean isPackageSuspended(String packageName) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return false;
     try {
       return devicePolicyManager.isPackageSuspended(admin, packageName);
     } catch (PackageManager.NameNotFoundException e) {

@@ -19,8 +19,8 @@
     xmlns:tools="http://schemas.android.com/tools"
           package="com.afwsamples.testdpc"
           tools:ignore="MissingClass"
-           android:versionCode="9016"
-           android:versionName="9.0.16">
+           android:versionCode="9017"
+           android:versionName="9.0.17">
     <uses-sdk tools:overrideLibrary="rikka.shizuku.aidl,rikka.shizuku.api" android:minSdkVersion="23" android:targetSdkVersion="35"/>
 
     <uses-permission android:name="android.permission.GET_ACCOUNTS" />
@@ -73,6 +73,8 @@
 
     <application
             android:allowBackup="true"
+            android:fullBackupContent="@xml/backup_rules"
+            android:dataExtractionRules="@xml/data_extraction_rules"
             android:icon="@drawable/ic_launcher"
             android:banner="@drawable/ic_launcher"
             android:theme="@style/AppTheme"
