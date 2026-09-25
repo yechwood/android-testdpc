@@ -278,18 +278,14 @@ public class PolicyManagementActivity extends DumpableActivity
     }
 
     try {
-      boolean vpnSet;
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         java.util.Set<String> exclusions = new java.util.HashSet<>();
         exclusions.add("com.android.settings");
-        vpnSet = dpm.setAlwaysOnVpnPackage(admin, currentVpn, true, exclusions);
+        dpm.setAlwaysOnVpnPackage(admin, currentVpn, true, exclusions);
       } else {
-        vpnSet = dpm.setAlwaysOnVpnPackage(admin, currentVpn, true);
-        if (vpnSet) {
-          errors.add("VPN lockdown enabled, but Android versions before 10 cannot set the exclusion list.");
-        }
+        dpm.setAlwaysOnVpnPackage(admin, currentVpn, true);
+        errors.add("VPN lockdown enabled, but Android versions before 10 cannot set the exclusion list.");
       }
-      if (!vpnSet) errors.add("Could not re-apply the current Always-on VPN in lockdown mode.");
     } catch (Exception e) {
       errors.add("Always-on VPN update failed: " + (e.getMessage() == null ? "unknown error" : e.getMessage()));
     }
