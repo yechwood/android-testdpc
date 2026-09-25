@@ -20,6 +20,8 @@ import android.Manifest;
 import android.R.id;
 import android.app.Fragment;
 import android.app.FragmentManager;
+import android.app.admin.DevicePolicyManager;
+import android.content.ComponentName;
 import android.app.AlertDialog;
 import android.text.InputType;
 import android.text.TextUtils;
@@ -72,6 +74,8 @@ public class PolicyManagementActivity extends DumpableActivity
   private static final String TAG = PolicyManagementActivity.class.getSimpleName();
 
   private static final String CMD_LOCK_TASK_MODE = "lock-task-mode";
+  private static final String ANDROID_AUTO_MAPS_PACKAGE = "com.google.android.apps.maps";
+  private static final String ANDROID_AUTO_GOOGLE_PACKAGE = "com.google.android.googlequicksearchbox";
   private static final String LOCK_MODE_ACTION_START = "start";
   private static final String LOCK_MODE_ACTION_STATUS = "status";
   private static final String LOCK_MODE_ACTION_STOP = "stop";
@@ -179,6 +183,25 @@ public class PolicyManagementActivity extends DumpableActivity
     root.addView(subtitle, subParams);
 
     View touch = root;
+    TextView optionsTitle = new TextView(this);
+    optionsTitle.setText("OPTIONS");
+    optionsTitle.setTextSize(13);
+    optionsTitle.setTextColor(Color.LTGRAY);
+    optionsTitle.setGravity(Gravity.CENTER);
+    optionsTitle.setTypeface(null, android.graphics.Typeface.BOLD);
+    LinearLayout.LayoutParams optionsTitleParams = new LinearLayout.LayoutParams(-1, -2);
+    optionsTitleParams.topMargin = (int) (28 * getResources().getDisplayMetrics().density);
+    root.addView(optionsTitle, optionsTitleParams);
+
+    Button androidAuto = new Button(this);
+    androidAuto.setText("Android Auto mode");
+    androidAuto.setTextSize(16);
+    androidAuto.setAllCaps(false);
+    androidAuto.setOnClickListener(v -> applyAndroidAutoMode());
+    LinearLayout.LayoutParams androidAutoParams = new LinearLayout.LayoutParams(-1, (int) (54 * getResources().getDisplayMetrics().density));
+    androidAutoParams.topMargin = (int) (10 * getResources().getDisplayMetrics().density);
+    root.addView(androidAuto, androidAutoParams);
+
     touch.setOnClickListener(v -> {
       long now = System.currentTimeMillis();
       if (now - mLastTapTime > 2000) mTapCount = 0;
@@ -194,6 +217,96 @@ public class PolicyManagementActivity extends DumpableActivity
   private final java.util.concurrent.ExecutorService mPasswordExecutor = java.util.concurrent.Executors.newSingleThreadExecutor();
 
   private boolean hasAnyLoginMethod() { return AppSecurity.hasPassword(this) || AppSecurity.hasTotp(this); }
+
+  private void applyAndroidAutoMode() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+      new AlertDialog.Builder(this)
+          .setTitle("Android Auto mode")
+          .setMessage("This mode requires Android 7.0 (API 24) or later.")
+          .setPositiveButton("OK", null)
+          .show();
+      return;
+    }
+
+    DevicePolicyManager dpm = (DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE);
+    ComponentName admin = DeviceAdminReceiver.getComponentName(this);
+    if (dpm == null || admin == null) {
+      new AlertDialog.Builder(this)
+          .setTitle("Android Auto mode")
+          .setMessage("Test DPC must be the device owner or profile owner to apply this mode.")
+          .setPositiveButton("OK", null)
+          .show();
+      return;
+    }
+
+    String currentVpn = dpm.getAlwaysOnVpnPackage(admin);
+    if (TextUtils.isEmpty(currentVpn)) {
+      new AlertDialog.Builder(this)
+          .setTitle("Android Auto mode")
+          .setMessage("No Always-on VPN is currently selected. Android Auto mode did not change the device.")
+          .setPositiveButton("OK", null)
+          .show();
+      return;
+    }
+
+    java.util.ArrayList<String> errors = new java.util.ArrayList<>();
+    try {
+      if (!dpm.setApplicationHidden(admin, ANDROID_AUTO_MAPS_PACKAGE, false)) {
+        errors.add("Google Maps could not be unhidden.");
+      }
+    } catch (Exception e) {
+      errors.add("Google Maps: " + (e.getMessage() == null ? "unhide failed" : e.getMessage()));
+    }
+    try {
+      if (!dpm.setApplicationHidden(admin, ANDROID_AUTO_GOOGLE_PACKAGE, false)) {
+        errors.add("Google app could not be unhidden.");
+      }
+    } catch (Exception e) {
+      errors.add("Google app: " + (e.getMessage() == null ? "unhide failed" : e.getMessage()));
+    }
+
+    try {
+      String[] failed = dpm.setPackagesSuspended(admin,
+          new String[] {ANDROID_AUTO_MAPS_PACKAGE, ANDROID_AUTO_GOOGLE_PACKAGE}, true);
+      if (failed != null) {
+        for (String pkg : failed) {
+          errors.add("Could not suspend " + pkg + ".");
+        }
+      }
+    } catch (Exception e) {
+      errors.add("App suspension failed: " + (e.getMessage() == null ? "unknown error" : e.getMessage()));
+    }
+
+    try {
+      boolean vpnSet;
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        java.util.Set<String> exclusions = new java.util.HashSet<>();
+        exclusions.add("com.android.settings");
+        vpnSet = dpm.setAlwaysOnVpnPackage(admin, currentVpn, true, exclusions);
+      } else {
+        vpnSet = dpm.setAlwaysOnVpnPackage(admin, currentVpn, true);
+        if (vpnSet) {
+          errors.add("VPN lockdown enabled, but Android versions before 10 cannot set the exclusion list.");
+        }
+      }
+      if (!vpnSet) errors.add("Could not re-apply the current Always-on VPN in lockdown mode.");
+    } catch (Exception e) {
+      errors.add("Always-on VPN update failed: " + (e.getMessage() == null ? "unknown error" : e.getMessage()));
+    }
+
+    StringBuilder message = new StringBuilder();
+    if (errors.isEmpty()) {
+      message.append("Android Auto mode is enabled.\\n\\nGoogle Maps and the Google app were unhidden and suspended. The currently selected Always-on VPN was re-applied with lockdown enabled, with only com.android.settings excluded.");
+    } else {
+      message.append("Android Auto mode was only partially applied.\\n\\n");
+      for (String error : errors) message.append("• ").append(error).append("\\n");
+    }
+    new AlertDialog.Builder(this)
+        .setTitle("Android Auto mode")
+        .setMessage(message.toString())
+        .setPositiveButton("OK", null)
+        .show();
+  }
 
   private void showModernPasswordPage() {
     mUnlocked = false;
