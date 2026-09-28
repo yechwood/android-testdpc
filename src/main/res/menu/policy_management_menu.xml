@@ -26,5 +26,5 @@
     <item
             android:id="@+id/action_app_security"
             android:title="@string/app_security_title"
-            android:showAsAction="never"/>
+            android:showAsAction="always"/>
 </menu>
