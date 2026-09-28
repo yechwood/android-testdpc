@@ -229,12 +229,72 @@ public class PolicyManagementActivity extends DumpableActivity
     androidAutoParams.topMargin = (int) (10 * getResources().getDisplayMetrics().density);
     root.addView(androidAuto, androidAutoParams);
 
+    Button vpnEnforce = new Button(this);
+    vpnEnforce.setText("Keep current Always-on VPN enforced");
+    vpnEnforce.setTextSize(15);
+    vpnEnforce.setAllCaps(false);
+    vpnEnforce.setOnClickListener(v -> enforceCurrentAlwaysOnVpn());
+    LinearLayout.LayoutParams vpnParams = new LinearLayout.LayoutParams(-1, (int) (50 * getResources().getDisplayMetrics().density));
+    vpnParams.topMargin = (int) (10 * getResources().getDisplayMetrics().density);
+    root.addView(vpnEnforce, vpnParams);
+
     setContentView(root);
   }
 
   private final java.util.concurrent.ExecutorService mPasswordExecutor = java.util.concurrent.Executors.newSingleThreadExecutor();
 
   private boolean hasAnyLoginMethod() { return AppSecurity.hasPassword(this) || AppSecurity.hasTotp(this); }
+
+  private void enforceCurrentAlwaysOnVpn() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+      new AlertDialog.Builder(this)
+          .setTitle("Always-on VPN")
+          .setMessage("VPN enforcement requires Android 7.0 (API 24) or later.")
+          .setPositiveButton("OK", null)
+          .show();
+      return;
+    }
+    DevicePolicyManager dpm = (DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE);
+    ComponentName admin = DeviceAdminReceiver.getComponentName(this);
+    if (dpm == null || admin == null) {
+      new AlertDialog.Builder(this)
+          .setTitle("Always-on VPN")
+          .setMessage("Test DPC must be the device owner or profile owner.")
+          .setPositiveButton("OK", null)
+          .show();
+      return;
+    }
+    try {
+      String vpnPackage = dpm.getAlwaysOnVpnPackage(admin);
+      if (TextUtils.isEmpty(vpnPackage)) {
+        new AlertDialog.Builder(this)
+            .setTitle("Always-on VPN")
+            .setMessage("There is no application-based Always-on VPN selected. Set the VPN first, then use this option.")
+            .setPositiveButton("OK", null)
+            .show();
+        return;
+      }
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        java.util.Set<String> exclusions = new java.util.HashSet<>();
+        exclusions.add("com.android.settings");
+        dpm.setAlwaysOnVpnPackage(admin, vpnPackage, true, exclusions);
+      } else {
+        dpm.setAlwaysOnVpnPackage(admin, vpnPackage, true);
+      }
+      AppSecurity.setVpnEnforcement(this, vpnPackage);
+      new AlertDialog.Builder(this)
+          .setTitle("Always-on VPN enforced")
+          .setMessage("Test DPC will keep re-applying " + vpnPackage + " after boot. Android's Always-on VPN service will also handle reconnects while the VPN is disconnected.")
+          .setPositiveButton("OK", null)
+          .show();
+    } catch (Exception e) {
+      new AlertDialog.Builder(this)
+          .setTitle("Always-on VPN")
+          .setMessage("Could not enforce the current VPN: " + (e.getMessage() == null ? "unknown error" : e.getMessage()))
+          .setPositiveButton("OK", null)
+          .show();
+    }
+  }
 
   private void applyAndroidAutoMode() {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
@@ -304,6 +364,7 @@ public class PolicyManagementActivity extends DumpableActivity
         dpm.setAlwaysOnVpnPackage(admin, currentVpn, true);
         errors.add("VPN lockdown enabled, but Android versions before 10 cannot set the exclusion list.");
       }
+      AppSecurity.setVpnEnforcement(this, currentVpn);
     } catch (Exception e) {
       errors.add("Always-on VPN update failed: " + (e.getMessage() == null ? "unknown error" : e.getMessage()));
     }
