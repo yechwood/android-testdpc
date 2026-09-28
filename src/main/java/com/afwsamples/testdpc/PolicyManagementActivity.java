@@ -113,8 +113,12 @@ public class PolicyManagementActivity extends DumpableActivity
     getFragmentManager().addOnBackStackChangedListener(this);
     boolean skipPassword = consumeAuthorizedToken(getIntent());
     mReturnToQuickAccess = getIntent().getBooleanExtra(EXTRA_RETURN_TO_QUICK_ACCESS, false);
-    if (hasAnyLoginMethod() && !skipPassword) {
-      showProtectionScreen();
+    if (!skipPassword) {
+      if (hasAnyLoginMethod()) {
+        showProtectionScreen();
+      } else {
+        showInitialSecuritySetup();
+      }
     } else {
       mUnlocked = true;
       startMainContent();
@@ -139,6 +143,76 @@ public class PolicyManagementActivity extends DumpableActivity
       Fragment f = getFragmentManager().findFragmentByTag(PolicyManagementFragment.FRAGMENT_TAG);
       if (f instanceof PolicyManagementFragment) ((PolicyManagementFragment) f).openQuickAction(quickAction);
     }, 300);
+  }
+
+  private void showInitialSecuritySetup() {
+    mUnlocked = false;
+    if (getActionBar() != null) getActionBar().hide();
+
+    final int dp = (int) getResources().getDisplayMetrics().density;
+    LinearLayout root = new LinearLayout(this);
+    root.setOrientation(LinearLayout.VERTICAL);
+    root.setGravity(Gravity.CENTER);
+    root.setPadding(28 * dp, 28 * dp, 28 * dp, 28 * dp);
+    root.setBackgroundColor(Color.rgb(12, 18, 28));
+
+    TextView icon = new TextView(this);
+    icon.setText("◈");
+    icon.setTextSize(52);
+    icon.setTextColor(Color.WHITE);
+    icon.setGravity(Gravity.CENTER);
+    root.addView(icon, new LinearLayout.LayoutParams(-1, -2));
+
+    TextView title = new TextView(this);
+    title.setText("Protect Test DPC");
+    title.setTextSize(28);
+    title.setTextColor(Color.WHITE);
+    title.setGravity(Gravity.CENTER);
+    title.setTypeface(null, android.graphics.Typeface.BOLD);
+    LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2);
+    tp.topMargin = 18 * dp;
+    root.addView(title, tp);
+
+    TextView message = new TextView(this);
+    message.setText("Set a password now to protect access to device policies. You can also set up an authenticator after the password.");
+    message.setTextSize(16);
+    message.setTextColor(Color.LTGRAY);
+    message.setGravity(Gravity.CENTER);
+    LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-1, -2);
+    mp.topMargin = 10 * dp;
+    root.addView(message, mp);
+
+    Button setPassword = new Button(this);
+    setPassword.setText("Set password");
+    setPassword.setAllCaps(false);
+    setPassword.setTextSize(17);
+    LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, 56 * dp);
+    bp.topMargin = 28 * dp;
+    root.addView(setPassword, bp);
+    setPassword.setOnClickListener(v -> showSetPasswordDialog());
+
+    Button authenticator = new Button(this);
+    authenticator.setText("Set up authenticator");
+    authenticator.setAllCaps(false);
+    authenticator.setTextSize(16);
+    LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, 52 * dp);
+    ap.topMargin = 10 * dp;
+    root.addView(authenticator, ap);
+    authenticator.setOnClickListener(v -> showTotpSettings());
+
+    Button continueButton = new Button(this);
+    continueButton.setText("Continue without password");
+    continueButton.setAllCaps(false);
+    continueButton.setTextSize(15);
+    LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, 50 * dp);
+    cp.topMargin = 18 * dp;
+    root.addView(continueButton, cp);
+    continueButton.setOnClickListener(v -> {
+      mUnlocked = true;
+      startMainContent();
+    });
+
+    setContentView(root);
   }
 
   private void showProtectionScreen() {
