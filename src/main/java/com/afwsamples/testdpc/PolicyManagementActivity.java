@@ -174,7 +174,9 @@ public class PolicyManagementActivity extends DumpableActivity
     root.addView(title, titleParams);
 
     TextView subtitle = new TextView(this);
-    subtitle.setText("Test DPC is protected.");
+    subtitle.setText(AppSecurity.hasPassword(this)
+        ? "Enter your password or one-time code to continue."
+        : "Password is not set. Choose Set password below.");
     subtitle.setTextSize(15);
     subtitle.setTextColor(Color.LTGRAY);
     subtitle.setGravity(Gravity.CENTER);
@@ -182,7 +184,32 @@ public class PolicyManagementActivity extends DumpableActivity
     subParams.topMargin = (int) (10 * getResources().getDisplayMetrics().density);
     root.addView(subtitle, subParams);
 
-    View touch = root;
+    Button securityButton = new Button(this);
+    securityButton.setText(AppSecurity.hasPassword(this) ? "Unlock" : "Set password");
+    securityButton.setTextSize(16);
+    securityButton.setAllCaps(false);
+    securityButton.setOnClickListener(v -> {
+      if (AppSecurity.hasPassword(this)) {
+        showModernPasswordPage();
+      } else if (AppSecurity.hasTotp(this)) {
+        showTotpAuthorizationForPassword();
+      } else {
+        showSetPasswordDialog();
+      }
+    });
+    LinearLayout.LayoutParams securityParams = new LinearLayout.LayoutParams(-1, (int) (54 * getResources().getDisplayMetrics().density));
+    securityParams.topMargin = (int) (24 * getResources().getDisplayMetrics().density);
+    root.addView(securityButton, securityParams);
+
+    Button authenticatorButton = new Button(this);
+    authenticatorButton.setText(AppSecurity.hasTotp(this) ? "Authenticator settings" : "Set up authenticator");
+    authenticatorButton.setTextSize(15);
+    authenticatorButton.setAllCaps(false);
+    authenticatorButton.setOnClickListener(v -> showTotpSettings());
+    LinearLayout.LayoutParams authenticatorParams = new LinearLayout.LayoutParams(-1, (int) (50 * getResources().getDisplayMetrics().density));
+    authenticatorParams.topMargin = (int) (10 * getResources().getDisplayMetrics().density);
+    root.addView(authenticatorButton, authenticatorParams);
+
     TextView optionsTitle = new TextView(this);
     optionsTitle.setText("OPTIONS");
     optionsTitle.setTextSize(13);
@@ -190,7 +217,7 @@ public class PolicyManagementActivity extends DumpableActivity
     optionsTitle.setGravity(Gravity.CENTER);
     optionsTitle.setTypeface(null, android.graphics.Typeface.BOLD);
     LinearLayout.LayoutParams optionsTitleParams = new LinearLayout.LayoutParams(-1, -2);
-    optionsTitleParams.topMargin = (int) (28 * getResources().getDisplayMetrics().density);
+    optionsTitleParams.topMargin = (int) (24 * getResources().getDisplayMetrics().density);
     root.addView(optionsTitle, optionsTitleParams);
 
     Button androidAuto = new Button(this);
@@ -202,15 +229,6 @@ public class PolicyManagementActivity extends DumpableActivity
     androidAutoParams.topMargin = (int) (10 * getResources().getDisplayMetrics().density);
     root.addView(androidAuto, androidAutoParams);
 
-    touch.setOnClickListener(v -> {
-      long now = System.currentTimeMillis();
-      if (now - mLastTapTime > 2000) mTapCount = 0;
-      mLastTapTime = now;
-      mTapCount++;
-      if (mTapCount >= 7) {
-        showModernPasswordPage();
-      }
-    });
     setContentView(root);
   }
 
@@ -301,6 +319,32 @@ public class PolicyManagementActivity extends DumpableActivity
         .setTitle("Android Auto mode")
         .setMessage(message.toString())
         .setPositiveButton("OK", null)
+        .show();
+  }
+
+  private void showTotpAuthorizationForPassword() {
+    final EditText code = new EditText(this);
+    code.setInputType(InputType.TYPE_CLASS_NUMBER);
+    code.setSingleLine(true);
+    code.setHint("6-digit code");
+    code.setTextSize(18);
+    code.setGravity(Gravity.CENTER);
+    new AlertDialog.Builder(this)
+        .setTitle("Set a password")
+        .setMessage("Enter your current authenticator code to authorize setting a password.")
+        .setView(code)
+        .setPositiveButton("Continue", (d, w) -> {
+          if (AppSecurity.verifyTotp(this, code.getText().toString())) {
+            showSetPasswordDialog();
+          } else {
+            new AlertDialog.Builder(this)
+                .setTitle("Code not accepted")
+                .setMessage("That one-time code is not valid. Check that your authenticator is using the Test DPC secret and that the device time is correct.")
+                .setPositiveButton("OK", null)
+                .show();
+          }
+        })
+        .setNegativeButton("Cancel", null)
         .show();
   }
 
