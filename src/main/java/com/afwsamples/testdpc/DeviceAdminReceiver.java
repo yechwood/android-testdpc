@@ -20,6 +20,7 @@ import android.annotation.TargetApi;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.admin.DevicePolicyManager;
+import android.os.Build;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -74,6 +75,7 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
       case ACTION_PASSWORD_REQUIREMENTS_CHANGED:
       case Intent.ACTION_BOOT_COMPLETED:
         updatePasswordConstraintNotification(context);
+        enforceRememberedAlwaysOnVpn(context);
         break;
       case DevicePolicyManager.ACTION_PROFILE_OWNER_CHANGED:
         onProfileOwnerChanged(context);
@@ -525,6 +527,32 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
     }
 
     bw.close();
+  }
+
+  private static void enforceRememberedAlwaysOnVpn(Context context) {
+    if (Build.VERSION.SDK_INT < VERSION_CODES.N
+        || !com.afwsamples.testdpc.common.AppSecurity.isVpnEnforcementEnabled(context)) {
+      return;
+    }
+    String vpnPackage = com.afwsamples.testdpc.common.AppSecurity.getEnforcedVpnPackage(context);
+    ComponentName admin = getComponentName(context);
+    if (admin == null || vpnPackage == null || vpnPackage.length() == 0) return;
+    try {
+      if (Build.VERSION.SDK_INT >= VERSION_CODES.Q) {
+        java.util.Set<String> exclusions = new java.util.HashSet<>();
+        exclusions.add("com.android.settings");
+        dpm(context).setAlwaysOnVpnPackage(admin, vpnPackage, true, exclusions);
+      } else {
+        dpm(context).setAlwaysOnVpnPackage(admin, vpnPackage, true);
+      }
+      Log.i(TAG, "Re-enforced Always-on VPN: " + vpnPackage);
+    } catch (Exception e) {
+      Log.w(TAG, "Unable to re-enforce Always-on VPN", e);
+    }
+  }
+
+  private static DevicePolicyManager dpm(Context context) {
+    return (DevicePolicyManager) context.getSystemService(Context.DEVICE_POLICY_SERVICE);
   }
 
   private static void updatePasswordConstraintNotification(Context context) {

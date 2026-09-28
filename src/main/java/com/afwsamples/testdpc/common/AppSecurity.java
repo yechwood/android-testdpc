@@ -32,6 +32,8 @@ public final class AppSecurity {
   private static final String KEY_POLICY_EDITED = "policy_edited";
   private static final String KEY_TOTP_SECRET = "totp_secret";
   private static final String KEY_TOTP_IV = "totp_iv";
+  private static final String KEY_VPN_ENFORCEMENT = "vpn_enforcement";
+  private static final String KEY_VPN_PACKAGE = "vpn_package";
   private static final String KEYSTORE_ALIAS = "TestDpcTotpKey";
   private static final int ITERATIONS = 120000;
   private static final int KEY_LENGTH = 256;
@@ -219,6 +221,28 @@ public final class AppSecurity {
       }
     }
     return out;
+  }
+
+  public static void setVpnEnforcement(Context context, String packageName) {
+    prefs(context).edit()
+        .putBoolean(KEY_VPN_ENFORCEMENT, true)
+        .putString(KEY_VPN_PACKAGE, packageName)
+        .apply();
+  }
+
+  public static void disableVpnEnforcement(Context context) {
+    prefs(context).edit()
+        .putBoolean(KEY_VPN_ENFORCEMENT, false)
+        .remove(KEY_VPN_PACKAGE)
+        .apply();
+  }
+
+  public static boolean isVpnEnforcementEnabled(Context context) {
+    return prefs(context).getBoolean(KEY_VPN_ENFORCEMENT, false);
+  }
+
+  public static String getEnforcedVpnPackage(Context context) {
+    return prefs(context).getString(KEY_VPN_PACKAGE, null);
   }
 
   public static long getPasswordSetTime(Context context) {

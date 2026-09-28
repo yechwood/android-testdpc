@@ -20,6 +20,8 @@ import android.Manifest;
 import android.R.id;
 import android.app.Fragment;
 import android.app.FragmentManager;
+import android.app.admin.DevicePolicyManager;
+import android.content.ComponentName;
 import android.app.AlertDialog;
 import android.text.InputType;
 import android.text.TextUtils;
@@ -72,6 +74,8 @@ public class PolicyManagementActivity extends DumpableActivity
   private static final String TAG = PolicyManagementActivity.class.getSimpleName();
 
   private static final String CMD_LOCK_TASK_MODE = "lock-task-mode";
+  private static final String ANDROID_AUTO_MAPS_PACKAGE = "com.google.android.apps.maps";
+  private static final String ANDROID_AUTO_GOOGLE_PACKAGE = "com.google.android.googlequicksearchbox";
   private static final String LOCK_MODE_ACTION_START = "start";
   private static final String LOCK_MODE_ACTION_STATUS = "status";
   private static final String LOCK_MODE_ACTION_STOP = "stop";
@@ -170,7 +174,9 @@ public class PolicyManagementActivity extends DumpableActivity
     root.addView(title, titleParams);
 
     TextView subtitle = new TextView(this);
-    subtitle.setText("Test DPC is protected.");
+    subtitle.setText(AppSecurity.hasPassword(this)
+        ? "Enter your password or one-time code to continue."
+        : "Password is not set. Choose Set password below.");
     subtitle.setTextSize(15);
     subtitle.setTextColor(Color.LTGRAY);
     subtitle.setGravity(Gravity.CENTER);
@@ -178,22 +184,230 @@ public class PolicyManagementActivity extends DumpableActivity
     subParams.topMargin = (int) (10 * getResources().getDisplayMetrics().density);
     root.addView(subtitle, subParams);
 
-    View touch = root;
-    touch.setOnClickListener(v -> {
-      long now = System.currentTimeMillis();
-      if (now - mLastTapTime > 2000) mTapCount = 0;
-      mLastTapTime = now;
-      mTapCount++;
-      if (mTapCount >= 7) {
+    Button securityButton = new Button(this);
+    securityButton.setText(AppSecurity.hasPassword(this) ? "Unlock" : "Set password");
+    securityButton.setTextSize(16);
+    securityButton.setAllCaps(false);
+    securityButton.setOnClickListener(v -> {
+      if (AppSecurity.hasPassword(this)) {
         showModernPasswordPage();
+      } else if (AppSecurity.hasTotp(this)) {
+        showTotpAuthorizationForPassword();
+      } else {
+        showSetPasswordDialog();
       }
     });
+    LinearLayout.LayoutParams securityParams = new LinearLayout.LayoutParams(-1, (int) (54 * getResources().getDisplayMetrics().density));
+    securityParams.topMargin = (int) (24 * getResources().getDisplayMetrics().density);
+    root.addView(securityButton, securityParams);
+
+    Button authenticatorButton = new Button(this);
+    authenticatorButton.setText(AppSecurity.hasTotp(this) ? "Authenticator settings" : "Set up authenticator");
+    authenticatorButton.setTextSize(15);
+    authenticatorButton.setAllCaps(false);
+    authenticatorButton.setOnClickListener(v -> showTotpSettings());
+    LinearLayout.LayoutParams authenticatorParams = new LinearLayout.LayoutParams(-1, (int) (50 * getResources().getDisplayMetrics().density));
+    authenticatorParams.topMargin = (int) (10 * getResources().getDisplayMetrics().density);
+    root.addView(authenticatorButton, authenticatorParams);
+
+    TextView optionsTitle = new TextView(this);
+    optionsTitle.setText("OPTIONS");
+    optionsTitle.setTextSize(13);
+    optionsTitle.setTextColor(Color.LTGRAY);
+    optionsTitle.setGravity(Gravity.CENTER);
+    optionsTitle.setTypeface(null, android.graphics.Typeface.BOLD);
+    LinearLayout.LayoutParams optionsTitleParams = new LinearLayout.LayoutParams(-1, -2);
+    optionsTitleParams.topMargin = (int) (24 * getResources().getDisplayMetrics().density);
+    root.addView(optionsTitle, optionsTitleParams);
+
+    Button androidAuto = new Button(this);
+    androidAuto.setText("Android Auto mode");
+    androidAuto.setTextSize(16);
+    androidAuto.setAllCaps(false);
+    androidAuto.setOnClickListener(v -> applyAndroidAutoMode());
+    LinearLayout.LayoutParams androidAutoParams = new LinearLayout.LayoutParams(-1, (int) (54 * getResources().getDisplayMetrics().density));
+    androidAutoParams.topMargin = (int) (10 * getResources().getDisplayMetrics().density);
+    root.addView(androidAuto, androidAutoParams);
+
+    Button vpnEnforce = new Button(this);
+    vpnEnforce.setText("Keep current Always-on VPN enforced");
+    vpnEnforce.setTextSize(15);
+    vpnEnforce.setAllCaps(false);
+    vpnEnforce.setOnClickListener(v -> enforceCurrentAlwaysOnVpn());
+    LinearLayout.LayoutParams vpnParams = new LinearLayout.LayoutParams(-1, (int) (50 * getResources().getDisplayMetrics().density));
+    vpnParams.topMargin = (int) (10 * getResources().getDisplayMetrics().density);
+    root.addView(vpnEnforce, vpnParams);
+
     setContentView(root);
   }
 
   private final java.util.concurrent.ExecutorService mPasswordExecutor = java.util.concurrent.Executors.newSingleThreadExecutor();
 
   private boolean hasAnyLoginMethod() { return AppSecurity.hasPassword(this) || AppSecurity.hasTotp(this); }
+
+  private void enforceCurrentAlwaysOnVpn() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+      new AlertDialog.Builder(this)
+          .setTitle("Always-on VPN")
+          .setMessage("VPN enforcement requires Android 7.0 (API 24) or later.")
+          .setPositiveButton("OK", null)
+          .show();
+      return;
+    }
+    DevicePolicyManager dpm = (DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE);
+    ComponentName admin = DeviceAdminReceiver.getComponentName(this);
+    if (dpm == null || admin == null) {
+      new AlertDialog.Builder(this)
+          .setTitle("Always-on VPN")
+          .setMessage("Test DPC must be the device owner or profile owner.")
+          .setPositiveButton("OK", null)
+          .show();
+      return;
+    }
+    try {
+      String vpnPackage = dpm.getAlwaysOnVpnPackage(admin);
+      if (TextUtils.isEmpty(vpnPackage)) {
+        new AlertDialog.Builder(this)
+            .setTitle("Always-on VPN")
+            .setMessage("There is no application-based Always-on VPN selected. Set the VPN first, then use this option.")
+            .setPositiveButton("OK", null)
+            .show();
+        return;
+      }
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        java.util.Set<String> exclusions = new java.util.HashSet<>();
+        exclusions.add("com.android.settings");
+        dpm.setAlwaysOnVpnPackage(admin, vpnPackage, true, exclusions);
+      } else {
+        dpm.setAlwaysOnVpnPackage(admin, vpnPackage, true);
+      }
+      AppSecurity.setVpnEnforcement(this, vpnPackage);
+      new AlertDialog.Builder(this)
+          .setTitle("Always-on VPN enforced")
+          .setMessage("Test DPC will keep re-applying " + vpnPackage + " after boot. Android's Always-on VPN service will also handle reconnects while the VPN is disconnected.")
+          .setPositiveButton("OK", null)
+          .show();
+    } catch (Exception e) {
+      new AlertDialog.Builder(this)
+          .setTitle("Always-on VPN")
+          .setMessage("Could not enforce the current VPN: " + (e.getMessage() == null ? "unknown error" : e.getMessage()))
+          .setPositiveButton("OK", null)
+          .show();
+    }
+  }
+
+  private void applyAndroidAutoMode() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+      new AlertDialog.Builder(this)
+          .setTitle("Android Auto mode")
+          .setMessage("This mode requires Android 7.0 (API 24) or later.")
+          .setPositiveButton("OK", null)
+          .show();
+      return;
+    }
+
+    DevicePolicyManager dpm = (DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE);
+    ComponentName admin = DeviceAdminReceiver.getComponentName(this);
+    if (dpm == null || admin == null) {
+      new AlertDialog.Builder(this)
+          .setTitle("Android Auto mode")
+          .setMessage("Test DPC must be the device owner or profile owner to apply this mode.")
+          .setPositiveButton("OK", null)
+          .show();
+      return;
+    }
+
+    String currentVpn = dpm.getAlwaysOnVpnPackage(admin);
+    if (TextUtils.isEmpty(currentVpn)) {
+      new AlertDialog.Builder(this)
+          .setTitle("Android Auto mode")
+          .setMessage("No Always-on VPN is currently selected. Android Auto mode did not change the device.")
+          .setPositiveButton("OK", null)
+          .show();
+      return;
+    }
+
+    java.util.ArrayList<String> errors = new java.util.ArrayList<>();
+    try {
+      if (!dpm.setApplicationHidden(admin, ANDROID_AUTO_MAPS_PACKAGE, false)) {
+        errors.add("Google Maps could not be unhidden.");
+      }
+    } catch (Exception e) {
+      errors.add("Google Maps: " + (e.getMessage() == null ? "unhide failed" : e.getMessage()));
+    }
+    try {
+      if (!dpm.setApplicationHidden(admin, ANDROID_AUTO_GOOGLE_PACKAGE, false)) {
+        errors.add("Google app could not be unhidden.");
+      }
+    } catch (Exception e) {
+      errors.add("Google app: " + (e.getMessage() == null ? "unhide failed" : e.getMessage()));
+    }
+
+    try {
+      String[] failed = dpm.setPackagesSuspended(admin,
+          new String[] {ANDROID_AUTO_MAPS_PACKAGE, ANDROID_AUTO_GOOGLE_PACKAGE}, true);
+      if (failed != null) {
+        for (String pkg : failed) {
+          errors.add("Could not suspend " + pkg + ".");
+        }
+      }
+    } catch (Exception e) {
+      errors.add("App suspension failed: " + (e.getMessage() == null ? "unknown error" : e.getMessage()));
+    }
+
+    try {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        java.util.Set<String> exclusions = new java.util.HashSet<>();
+        exclusions.add("com.android.settings");
+        dpm.setAlwaysOnVpnPackage(admin, currentVpn, true, exclusions);
+      } else {
+        dpm.setAlwaysOnVpnPackage(admin, currentVpn, true);
+        errors.add("VPN lockdown enabled, but Android versions before 10 cannot set the exclusion list.");
+      }
+      AppSecurity.setVpnEnforcement(this, currentVpn);
+    } catch (Exception e) {
+      errors.add("Always-on VPN update failed: " + (e.getMessage() == null ? "unknown error" : e.getMessage()));
+    }
+
+    StringBuilder message = new StringBuilder();
+    if (errors.isEmpty()) {
+      message.append("Android Auto mode is enabled.\\n\\nGoogle Maps and the Google app were unhidden and suspended. The currently selected Always-on VPN was re-applied with lockdown enabled, with only com.android.settings excluded.");
+    } else {
+      message.append("Android Auto mode was only partially applied.\\n\\n");
+      for (String error : errors) message.append("• ").append(error).append("\\n");
+    }
+    new AlertDialog.Builder(this)
+        .setTitle("Android Auto mode")
+        .setMessage(message.toString())
+        .setPositiveButton("OK", null)
+        .show();
+  }
+
+  private void showTotpAuthorizationForPassword() {
+    final EditText code = new EditText(this);
+    code.setInputType(InputType.TYPE_CLASS_NUMBER);
+    code.setSingleLine(true);
+    code.setHint("6-digit code");
+    code.setTextSize(18);
+    code.setGravity(Gravity.CENTER);
+    new AlertDialog.Builder(this)
+        .setTitle("Set a password")
+        .setMessage("Enter your current authenticator code to authorize setting a password.")
+        .setView(code)
+        .setPositiveButton("Continue", (d, w) -> {
+          if (AppSecurity.verifyTotp(this, code.getText().toString())) {
+            showSetPasswordDialog();
+          } else {
+            new AlertDialog.Builder(this)
+                .setTitle("Code not accepted")
+                .setMessage("That one-time code is not valid. Check that your authenticator is using the Test DPC secret and that the device time is correct.")
+                .setPositiveButton("OK", null)
+                .show();
+          }
+        })
+        .setNegativeButton("Cancel", null)
+        .show();
+  }
 
   private void showModernPasswordPage() {
     mUnlocked = false;
