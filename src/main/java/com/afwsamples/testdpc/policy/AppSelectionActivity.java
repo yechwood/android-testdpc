@@ -199,6 +199,11 @@ public class AppSelectionActivity extends Activity {
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
         appFlags |= PackageManager.MATCH_DISABLED_COMPONENTS;
       }
+      // Hidden packages may be omitted from the normal installed-app list. Include
+      // uninstalled/hidden package records only in Unhide mode, then filter by DPM state.
+      if (mode == MODE_UNHIDE) {
+        appFlags |= PackageManager.MATCH_UNINSTALLED_PACKAGES;
+      }
       List<ApplicationInfo> installed = packageManager.getInstalledApplications(appFlags);
       for (ApplicationInfo info : installed) {
         boolean include;

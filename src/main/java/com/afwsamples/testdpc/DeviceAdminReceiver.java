@@ -36,6 +36,7 @@ import android.util.Log;
 import android.widget.Toast;
 import androidx.core.app.NotificationCompat;
 import com.afwsamples.testdpc.common.NotificationUtil;
+import com.afwsamples.testdpc.common.AppSecurity;
 import com.afwsamples.testdpc.common.Util;
 import com.afwsamples.testdpc.provision.PostProvisioningTask;
 import java.io.BufferedReader;
@@ -74,6 +75,9 @@ public class DeviceAdminReceiver extends android.app.admin.DeviceAdminReceiver {
       case ACTION_PASSWORD_REQUIREMENTS_CHANGED:
       case Intent.ACTION_BOOT_COMPLETED:
         updatePasswordConstraintNotification(context);
+        if (AppSecurity.isVpnEnforcementEnabled(context)) {
+          VpnEnforcementService.enable(context);
+        }
         break;
       case DevicePolicyManager.ACTION_PROFILE_OWNER_CHANGED:
         onProfileOwnerChanged(context);

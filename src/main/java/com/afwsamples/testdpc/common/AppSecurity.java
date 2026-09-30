@@ -32,6 +32,9 @@ public final class AppSecurity {
   private static final String KEY_POLICY_EDITED = "policy_edited";
   private static final String KEY_TOTP_SECRET = "totp_secret";
   private static final String KEY_TOTP_IV = "totp_iv";
+  private static final String KEY_TOTP_ENABLED = "totp_enabled";
+  private static final String KEY_VPN_ENFORCEMENT = "vpn_enforcement";
+  private static final String KEY_VPN_PACKAGE = "vpn_package";
   private static final String KEYSTORE_ALIAS = "TestDpcTotpKey";
   private static final int ITERATIONS = 120000;
   private static final int KEY_LENGTH = 256;
@@ -71,7 +74,33 @@ public final class AppSecurity {
   }
 
   public static boolean hasTotp(Context context) {
-    return !TextUtils.isEmpty(getTotpSecret(context));
+    SharedPreferences p = prefs(context);
+    return !TextUtils.isEmpty(getTotpSecret(context)) && p.getBoolean(KEY_TOTP_ENABLED, true);
+  }
+
+  public static boolean confirmTotp(Context context, String code) {
+    if (!verifyTotp(context, code)) return false;
+    prefs(context).edit().putBoolean(KEY_TOTP_ENABLED, true).apply();
+    return true;
+  }
+
+  public static void setVpnEnforcement(Context context, String packageName) {
+    if (TextUtils.isEmpty(packageName)) return;
+    prefs(context).edit().putString(KEY_VPN_PACKAGE, packageName)
+        .putBoolean(KEY_VPN_ENFORCEMENT, true).apply();
+  }
+
+  public static void disableVpnEnforcement(Context context) {
+    prefs(context).edit().putBoolean(KEY_VPN_ENFORCEMENT, false).apply();
+  }
+
+  public static boolean isVpnEnforcementEnabled(Context context) {
+    return prefs(context).getBoolean(KEY_VPN_ENFORCEMENT, false)
+        && !TextUtils.isEmpty(getEnforcedVpnPackage(context));
+  }
+
+  public static String getEnforcedVpnPackage(Context context) {
+    return prefs(context).getString(KEY_VPN_PACKAGE, null);
   }
 
   public static String enableTotp(Context context) {
@@ -81,11 +110,12 @@ public final class AppSecurity {
     if (!storeEncryptedTotpSecret(context, encoded)) {
       return null;
     }
+    prefs(context).edit().putBoolean(KEY_TOTP_ENABLED, false).apply();
     return encoded;
   }
 
   public static void disableTotp(Context context) {
-    prefs(context).edit().remove(KEY_TOTP_SECRET).remove(KEY_TOTP_IV).apply();
+    prefs(context).edit().remove(KEY_TOTP_SECRET).remove(KEY_TOTP_IV).remove(KEY_TOTP_ENABLED).apply();
   }
 
   public static String getTotpSecret(Context context) {
