@@ -733,7 +733,9 @@ public class PolicyManagementActivity extends DumpableActivity
             new AlertDialog.Builder(this)
                 .setMessage("Password saved.\nPassword set: " + AppSecurity.formatTime(AppSecurity.getPasswordSetTime(this))
                     + "\nPolicy last edited: " + AppSecurity.formatTime(AppSecurity.getPolicyEditedTime(this)))
-                .setPositiveButton("OK", null).show();
+                .setPositiveButton("OK", (savedDialog, which) -> {
+                  if (!mUnlocked) showProtectionScreen();
+                }).show();
           }
         })
         .setNegativeButton("Cancel", null)
