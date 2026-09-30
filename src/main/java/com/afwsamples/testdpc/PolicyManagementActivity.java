@@ -502,6 +502,7 @@ public class PolicyManagementActivity extends DumpableActivity
       String code = codeInput.getText().toString().trim();
       if (AppSecurity.confirmTotp(this, code)) {
         Toast.makeText(this, "Authenticator verified and enabled", Toast.LENGTH_LONG).show();
+        if (!mUnlocked) showProtectionScreen();
       } else {
         codeInput.setError("Code not valid yet. Check the device time and try the current code.");
       }
