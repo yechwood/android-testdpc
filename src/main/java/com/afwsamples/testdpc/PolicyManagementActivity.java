@@ -21,6 +21,9 @@ import android.R.id;
 import android.app.Fragment;
 import android.app.FragmentManager;
 import android.app.AlertDialog;
+import android.app.admin.DevicePolicyManager;
+import android.content.ComponentName;
+import android.content.Context;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.widget.EditText;
@@ -212,6 +215,7 @@ public class PolicyManagementActivity extends DumpableActivity
       startMainContent();
     });
 
+    addLockedOptions(root);
     setContentView(root);
   }
 
@@ -252,16 +256,16 @@ public class PolicyManagementActivity extends DumpableActivity
     subParams.topMargin = (int) (10 * getResources().getDisplayMetrics().density);
     root.addView(subtitle, subParams);
 
-    View touch = root;
-    touch.setOnClickListener(v -> {
-      long now = System.currentTimeMillis();
-      if (now - mLastTapTime > 2000) mTapCount = 0;
-      mLastTapTime = now;
-      mTapCount++;
-      if (mTapCount >= 7) {
-        showModernPasswordPage();
-      }
-    });
+    Button unlock = new Button(this);
+    unlock.setText("Unlock");
+    unlock.setAllCaps(false);
+    LinearLayout.LayoutParams unlockParams = new LinearLayout.LayoutParams(-1,
+        (int) (54 * getResources().getDisplayMetrics().density));
+    unlockParams.topMargin = (int) (22 * getResources().getDisplayMetrics().density);
+    root.addView(unlock, unlockParams);
+    unlock.setOnClickListener(v -> showModernPasswordPage());
+
+    addLockedOptions(root);
     setContentView(root);
   }
 
@@ -412,29 +416,23 @@ public class PolicyManagementActivity extends DumpableActivity
   }
 
   private void showTotpSettings() {
-    if (!AppSecurity.hasTotp(this)) {
-      new AlertDialog.Builder(this)
-          .setTitle("One-time code")
-          .setMessage("Use an authenticator app as an additional way to unlock Test DPC. Opening this screen will not enable it until you choose Enable.")
-          .setPositiveButton("Enable", (d, w) -> {
-            String secret = AppSecurity.enableTotp(this);
-            if (TextUtils.isEmpty(secret)) {
-              new AlertDialog.Builder(this)
-                  .setMessage("Could not create a secure authenticator secret on this device.")
-                  .setPositiveButton("OK", null)
-                  .show();
-            } else {
-              showTotpSecret(secret);
-            }
-          })
-          .setNegativeButton("Cancel", null)
-          .show();
-      return;
-    }
     String secret = AppSecurity.getTotpSecret(this);
     if (TextUtils.isEmpty(secret)) {
-      AppSecurity.disableTotp(this);
-      showTotpSettings();
+      new AlertDialog.Builder(this)
+          .setTitle("Set up authenticator")
+          .setMessage("Generate a secret, add it to your authenticator app, then verify a current six-digit code before it is enabled.")
+          .setPositiveButton("Generate secret", (d, w) -> {
+            String created = AppSecurity.enableTotp(this);
+            if (TextUtils.isEmpty(created)) {
+              new AlertDialog.Builder(this)
+                  .setTitle("Authenticator setup failed")
+                  .setMessage("Android could not create or protect the authenticator secret. No code was enabled.")
+                  .setPositiveButton("OK", null).show();
+            } else {
+              showTotpSecret(created);
+            }
+          })
+          .setNegativeButton("Cancel", null).show();
       return;
     }
     showTotpSecret(secret);
@@ -455,7 +453,7 @@ public class PolicyManagementActivity extends DumpableActivity
     card.setPadding(24 * dp, 20 * dp, 24 * dp, 8 * dp);
 
     TextView intro = new TextView(this);
-    intro.setText("Scan the QR code or copy the secret into your authenticator app. Codes refresh every 30 seconds.");
+    intro.setText("Add this secret to your authenticator app, enter its current six-digit code below, then choose Verify & enable. Codes refresh every 30 seconds.");
     intro.setTextSize(15);
     intro.setTextColor(Color.DKGRAY);
     card.addView(intro, new LinearLayout.LayoutParams(-1, -2));
@@ -486,6 +484,29 @@ public class PolicyManagementActivity extends DumpableActivity
     qr.setAllCaps(false);
     qr.setOnClickListener(v -> showTotpQr(secret));
     card.addView(qr, new LinearLayout.LayoutParams(-1, 52 * dp));
+
+    EditText codeInput = new EditText(this);
+    codeInput.setSingleLine(true);
+    codeInput.setInputType(InputType.TYPE_CLASS_NUMBER);
+    codeInput.setHint("6-digit authenticator code");
+    codeInput.setTextSize(18);
+    codeInput.setGravity(Gravity.CENTER);
+    LinearLayout.LayoutParams codeParams = new LinearLayout.LayoutParams(-1, 54 * dp);
+    codeParams.topMargin = 10 * dp;
+    card.addView(codeInput, codeParams);
+
+    Button verifyCode = new Button(this);
+    verifyCode.setText("Verify & enable");
+    verifyCode.setAllCaps(false);
+    verifyCode.setOnClickListener(v -> {
+      String code = codeInput.getText().toString().trim();
+      if (AppSecurity.confirmTotp(this, code)) {
+        Toast.makeText(this, "Authenticator verified and enabled", Toast.LENGTH_LONG).show();
+      } else {
+        codeInput.setError("Code not valid yet. Check the device time and try the current code.");
+      }
+    });
+    card.addView(verifyCode, new LinearLayout.LayoutParams(-1, 52 * dp));
 
     AlertDialog dialog = new AlertDialog.Builder(this)
         .setTitle("Authenticator setup")
@@ -572,6 +593,113 @@ public class PolicyManagementActivity extends DumpableActivity
           .setPositiveButton("Copy secret", (d, w) -> copyTotpSecret(secret))
           .setNegativeButton("Close", null)
           .show();
+    }
+  }
+
+  private void addLockedOptions(LinearLayout root) {
+    final int dp = (int) getResources().getDisplayMetrics().density;
+    TextView heading = new TextView(this);
+    heading.setText("OPTIONS");
+    heading.setTextColor(Color.LTGRAY);
+    heading.setTextSize(13);
+    heading.setTypeface(null, android.graphics.Typeface.BOLD);
+    heading.setGravity(Gravity.CENTER_VERTICAL);
+    LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(-1, 36 * dp);
+    hp.topMargin = 20 * dp;
+    root.addView(heading, hp);
+
+    Button androidAuto = new Button(this);
+    androidAuto.setText("Android Auto mode");
+    androidAuto.setAllCaps(false);
+    root.addView(androidAuto, new LinearLayout.LayoutParams(-1, 52 * dp));
+    androidAuto.setOnClickListener(v -> applyAndroidAutoMode());
+
+    Button vpn = new Button(this);
+    vpn.setText("Keep current Always-on VPN enforced");
+    vpn.setAllCaps(false);
+    LinearLayout.LayoutParams vp = new LinearLayout.LayoutParams(-1, 52 * dp);
+    vp.topMargin = 8 * dp;
+    root.addView(vpn, vp);
+    vpn.setOnClickListener(v -> enforceCurrentAlwaysOnVpn());
+  }
+
+  private void applyAndroidAutoMode() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+      new AlertDialog.Builder(this).setMessage("Android Auto mode requires Android 7.0 or later for app suspension and Always-on VPN controls.")
+          .setPositiveButton("OK", null).show();
+      return;
+    }
+    DevicePolicyManager dpm = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+    ComponentName admin = new ComponentName(this, DeviceAdminReceiver.class);
+    StringBuilder issues = new StringBuilder();
+    String[] packages = {"com.google.android.apps.maps", "com.google.android.googlequicksearchbox"};
+    for (String pkg : packages) {
+      try {
+        if (dpm.isApplicationHidden(admin, pkg) && !dpm.setApplicationHidden(admin, pkg, false)) {
+          issues.append("Could not unhide ").append(pkg).append(". ");
+        }
+      } catch (RuntimeException e) {
+        issues.append("Could not unhide ").append(pkg).append(": ").append(e.getMessage()).append(". ");
+      }
+    }
+    try {
+      String[] failed = dpm.setPackagesSuspended(admin, packages, true);
+      if (failed != null) for (String pkg : failed) issues.append("Could not suspend ").append(pkg).append(". ");
+    } catch (RuntimeException e) {
+      issues.append("Could not suspend Google apps: ").append(e.getMessage()).append(". ");
+    }
+    String vpnPackage = null;
+    try {
+      vpnPackage = dpm.getAlwaysOnVpnPackage(admin);
+      if (TextUtils.isEmpty(vpnPackage)) {
+        issues.append("No application-based Always-on VPN is currently selected; VPN enforcement was not enabled. ");
+      } else {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+          dpm.setAlwaysOnVpnPackage(admin, vpnPackage, true, Collections.singleton("com.android.settings"));
+        } else {
+          dpm.setAlwaysOnVpnPackage(admin, vpnPackage, true);
+          issues.append("This Android version cannot set the com.android.settings VPN exclusion list. ");
+        }
+        AppSecurity.setVpnEnforcement(this, vpnPackage);
+        VpnEnforcementService.enable(this);
+      }
+    } catch (Exception e) {
+      issues.append("Could not reapply Always-on VPN: ").append(e.getMessage()).append(". ");
+    }
+    String msg = "Android Auto mode applied. Google Maps and Google app were requested to be unhidden and suspended.";
+    if (issues.length() > 0) msg += "\n\nNeeds attention: " + issues;
+    new AlertDialog.Builder(this).setTitle("Android Auto mode").setMessage(msg).setPositiveButton("OK", null).show();
+  }
+
+  private void enforceCurrentAlwaysOnVpn() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+      new AlertDialog.Builder(this).setMessage("Always-on VPN enforcement requires Android 7.0 or later.").setPositiveButton("OK", null).show();
+      return;
+    }
+    DevicePolicyManager dpm = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+    ComponentName admin = new ComponentName(this, DeviceAdminReceiver.class);
+    try {
+      String vpnPackage = dpm.getAlwaysOnVpnPackage(admin);
+      if (TextUtils.isEmpty(vpnPackage)) {
+        new AlertDialog.Builder(this).setTitle("No Always-on VPN selected")
+            .setMessage("Select the VPN in Android Settings first, then tap this option. Test DPC will monitor network changes and reapply the same VPN configuration if it drops.")
+            .setPositiveButton("OK", null).show();
+        return;
+      }
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        dpm.setAlwaysOnVpnPackage(admin, vpnPackage, true, Collections.singleton("com.android.settings"));
+      } else {
+        dpm.setAlwaysOnVpnPackage(admin, vpnPackage, true);
+      }
+      AppSecurity.setVpnEnforcement(this, vpnPackage);
+      VpnEnforcementService.enable(this);
+      new AlertDialog.Builder(this).setTitle("VPN enforcement enabled")
+          .setMessage("Monitoring uses Android network-change callbacks, not continuous polling. Test DPC will reapply the current VPN configuration if the VPN network disappears. The VPN app must still support Always-on VPN.")
+          .setPositiveButton("OK", null).show();
+    } catch (Exception e) {
+      new AlertDialog.Builder(this).setTitle("Could not enforce VPN")
+          .setMessage(e.getMessage() == null ? e.toString() : e.getMessage())
+          .setPositiveButton("OK", null).show();
     }
   }
 
