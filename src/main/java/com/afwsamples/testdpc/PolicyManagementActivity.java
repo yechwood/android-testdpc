@@ -615,6 +615,14 @@ public class PolicyManagementActivity extends DumpableActivity
     root.addView(androidAuto, new LinearLayout.LayoutParams(-1, 52 * dp));
     androidAuto.setOnClickListener(v -> applyAndroidAutoMode());
 
+    Button disableAndroidAuto = new Button(this);
+    disableAndroidAuto.setText("Turn off Android Auto mode (re-hide apps)");
+    disableAndroidAuto.setAllCaps(false);
+    LinearLayout.LayoutParams disableParams = new LinearLayout.LayoutParams(-1, 52 * dp);
+    disableParams.topMargin = 8 * dp;
+    root.addView(disableAndroidAuto, disableParams);
+    disableAndroidAuto.setOnClickListener(v -> disableAndroidAutoMode());
+
     Button vpn = new Button(this);
     vpn.setText("Keep current Always-on VPN enforced");
     vpn.setAllCaps(false);
@@ -670,6 +678,46 @@ public class PolicyManagementActivity extends DumpableActivity
     String msg = "Android Auto mode applied. Google Maps and Google app were requested to be unhidden and suspended.";
     if (issues.length() > 0) msg += "\n\nNeeds attention: " + issues;
     new AlertDialog.Builder(this).setTitle("Android Auto mode").setMessage(msg).setPositiveButton("OK", null).show();
+  }
+
+  private void disableAndroidAutoMode() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+      new AlertDialog.Builder(this)
+          .setMessage("Turning off Android Auto mode requires Android 7.0 or later.")
+          .setPositiveButton("OK", null).show();
+      return;
+    }
+    new AlertDialog.Builder(this)
+        .setTitle("Turn off Android Auto mode?")
+        .setMessage("Google Maps and the Google app will be unsuspended and hidden again. Your selected Always-on VPN and its enforcement settings will be left unchanged.")
+        .setNegativeButton("Cancel", null)
+        .setPositiveButton("Turn off", (dialog, which) -> {
+          DevicePolicyManager dpm = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+          ComponentName admin = new ComponentName(this, DeviceAdminReceiver.class);
+          String[] packages = {"com.google.android.apps.maps", "com.google.android.googlequicksearchbox"};
+          StringBuilder issues = new StringBuilder();
+          try {
+            String[] failed = dpm.setPackagesSuspended(admin, packages, false);
+            if (failed != null) {
+              for (String pkg : failed) issues.append("Could not unsuspend ").append(pkg).append(". ");
+            }
+          } catch (RuntimeException e) {
+            issues.append("Could not unsuspend Google apps: ").append(e.getMessage()).append(". ");
+          }
+          for (String pkg : packages) {
+            try {
+              if (!dpm.setApplicationHidden(admin, pkg, true)) {
+                issues.append("Could not hide ").append(pkg).append(". ");
+              }
+            } catch (RuntimeException e) {
+              issues.append("Could not hide ").append(pkg).append(": ").append(e.getMessage()).append(". ");
+            }
+          }
+          String message = "Android Auto mode turned off. Google Maps and the Google app were requested to be hidden again.";
+          if (issues.length() > 0) message += "\n\nNeeds attention: " + issues;
+          new AlertDialog.Builder(this).setTitle("Android Auto mode")
+              .setMessage(message).setPositiveButton("OK", null).show();
+        }).show();
   }
 
   private void enforceCurrentAlwaysOnVpn() {
